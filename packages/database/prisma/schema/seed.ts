@@ -18,7 +18,7 @@ const adapter = new PrismaPg({ connectionString: databaseUrl });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-    console.log(' - Starting database seed...');
+    process.stdout.write(' - Starting database seed...\n');
 
     // Hash the secure password from the .env file
     const securePasswordHash = await argon2.hash(adminPassword);
@@ -33,7 +33,7 @@ async function main() {
             description: 'Software development and computer science courses',
         },
     });
-    console.log(` - Created Category: ${programmingCategory.name}`);
+    process.stdout.write(` - Created Category: ${programmingCategory.name}\n`);
 
     // Seed the Default Administrator
     const adminUser = await prisma.user.upsert({
@@ -50,8 +50,8 @@ async function main() {
         },
     });
 
-    console.log(` - Created Admin User: ${adminUser.email}`);
-    console.log(' - Seeding finished.');
+    process.stdout.write(` - Created Admin User: ${adminUser.email}\n`);
+    process.stdout.write(' - Seeding finished.\n');
 }
 
 main()

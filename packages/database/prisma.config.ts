@@ -3,7 +3,7 @@ import { defineConfig } from "@prisma/config";
 try {
     process.loadEnvFile("./.env");
 } catch (error) {
-    console.warn("⚠️ Could not load local .env file");
+    console.warn("⚠️ Could not load local .env file", error);
 }
 
 export default defineConfig({
