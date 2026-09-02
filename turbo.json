@@ -1,0 +1,31 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "tasks": {
+    "db:generate": {
+      "cache": true,
+      "inputs": ["prisma/schema.prisma", "prisma.config.ts"],
+      "outputs": ["node_modules/.prisma/**"]
+    },
+    "build": {
+      "dependsOn": ["^build", "@template/database#db:generate"],
+      "outputs": ["dist/**"],
+      "env": ["NODE_ENV", "DATABASE_URL", "PORT"]
+    },
+    "type-check": {
+      "dependsOn": ["^build", "@template/database#db:generate"],
+      "outputs": []
+    },
+    "lint": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}
