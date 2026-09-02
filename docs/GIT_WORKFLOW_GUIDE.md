@@ -167,7 +167,7 @@ Work on your code. Stage and commit in small, logical chunks:
 git status
 
 # Stage specific files
-git add packages/database/prisma/schema.prisma
+git add packages/database/prisma/schema/base.prisma
 
 # Commit with conventional message
 git commit -m "feat(database): define User and Role models with relations"

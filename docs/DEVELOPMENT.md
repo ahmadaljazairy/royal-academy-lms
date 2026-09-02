@@ -61,7 +61,7 @@ All commands should be executed from the **monorepo root**:
    ```
 
 ### Recipe B: Updating the Database Schema
-1. Modify `packages/database/prisma/schema.prisma`.
+1. Modify `packages/database/schema/*` file or add new file.
 2. Regenerate the Prisma Client:
    ```bash
    pnpm --filter @template/database run db:generate

@@ -1,0 +1,22 @@
+enum Role {
+  STUDENT
+  INSTRUCTOR
+  ADMIN
+}
+
+model User {
+  id              String  @id @default(uuid())
+  email           String  @unique
+  passwordHash    String
+  displayName     String
+  profilePhoto    String?
+  role            Role    @default(STUDENT)
+  isEmailVerified Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relational mappings
+  emailVerifications  EmailVerification[]
+  passwordResetTokens PasswordResetToken[]
+}
