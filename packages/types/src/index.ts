@@ -39,3 +39,12 @@ export interface HealthStatus {
     uptime: number;
     version: string;
 }
+
+export type SystemRole = 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
+
+export interface UserSession {
+    userId: string;
+    email: string;
+    role: SystemRole;
+    createdAt: number; // Unix timestamp (ms)
+}
