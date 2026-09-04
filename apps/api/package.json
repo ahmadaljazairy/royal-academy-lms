@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "dev": "node --watch --env-file=.env dist/main.js",
+    "dev": "tsx watch --env-file=.env src/main.ts",
     "start": "node --env-file=.env dist/main.js",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
@@ -19,6 +19,7 @@
     "@template/database": "workspace:*",
     "@template/types": "workspace:*",
     "argon2": "^0.45.1",
+    "ioredis": "^6.0.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
@@ -27,6 +28,7 @@
     "@template/eslint-config": "workspace:*",
     "@template/typescript-config": "workspace:*",
     "@types/express": "^5.0.0",
+    "@types/ioredis": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
     "eslint": "^9.18.0",

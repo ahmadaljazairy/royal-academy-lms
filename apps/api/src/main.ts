@@ -9,6 +9,7 @@ async function bootstrap(): Promise<void> {
     const port = process.env["PORT"] ? Number(process.env["PORT"]) : 3000;
 
     app.enableCors();
+    app.enableShutdownHooks();
 
     await app.listen(port);
     logger.log(`Server running on http://localhost:${port}`);
