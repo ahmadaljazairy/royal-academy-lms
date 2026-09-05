@@ -1,7 +1,8 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
-import { Logger } from "@nestjs/common";
+import {Logger, ValidationPipe} from "@nestjs/common";
 import { AppModule } from "./app.module.js";
+import cookieParser from "cookie-parser";
 
 async function bootstrap(): Promise<void> {
     const logger = new Logger("Bootstrap");
@@ -10,6 +11,18 @@ async function bootstrap(): Promise<void> {
 
     app.enableCors();
     app.enableShutdownHooks();
+
+    app.use(cookieParser());
+
+    app.useGlobalPipes(
+        new ValidationPipe({
+            whitelist: true,
+            forbidNonWhitelisted: true,
+            transform: true,
+        }),
+    );
+
+    app.setGlobalPrefix('api');
 
     await app.listen(port);
     logger.log(`Server running on http://localhost:${port}`);
