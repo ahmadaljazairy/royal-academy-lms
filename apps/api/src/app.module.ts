@@ -6,9 +6,10 @@ import { RedisModule } from './redis/redis.module.js';
 import {APP_FILTER, APP_INTERCEPTOR} from "@nestjs/core";
 import {TransformResponseInterceptor} from "./common/interceptors/transform-response.interceptor.js";
 import {AllExceptionsFilter} from "./common/filters/all-exceptions.filter.js";
+import {AuthModule} from "./auth/auth.module.js";
 
 @Module({
-    imports: [SecurityModule, RedisModule],
+    imports: [SecurityModule, RedisModule, AuthModule],
     controllers: [AppController],
     providers: [AppService,
         {
