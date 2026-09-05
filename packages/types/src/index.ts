@@ -1,15 +1,6 @@
 export * from './user.js';
 export * from './auth.js';
-
-/**
- * Generic API response envelope for all HTTP endpoints.
- */
-export interface ApiResponse<TData = unknown> {
-    success: boolean;
-    data: TData;
-    message?: string;
-    timestamp: string;
-}
+export * from './api.js'
 
 /**
  * Standard system health status contract.
