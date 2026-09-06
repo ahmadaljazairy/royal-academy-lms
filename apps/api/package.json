@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "dev": "node --watch --import @swc-node/register/esm-register --env-file=.env src/main.ts",    "start": "node --env-file=.env dist/main.js",
+    "dev": "node --watch --import @swc-node/register/esm-register --env-file=.env src/main.ts",
+    "start": "node --env-file=.env dist/main.js",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
     "clean": "rm -rf dist",
@@ -15,6 +16,7 @@
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/swagger": "^11.4.7",
     "@template/database": "workspace:*",
     "@template/types": "workspace:*",
     "argon2": "^0.45.1",
@@ -23,7 +25,8 @@
     "cookie-parser": "^1.4.7",
     "ioredis": "^6.0.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.2.3",
@@ -36,6 +39,7 @@
     "@types/ioredis": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
+    "@types/swagger-ui-express": "^4.1.8",
     "eslint": "^9.18.0",
     "jest": "^30.5.1",
     "ts-jest": "^29.4.12",
