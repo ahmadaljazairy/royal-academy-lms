@@ -15,6 +15,8 @@ import { SESSION_COOKIE_NAME, getSessionCookieOptions } from './auth.constants.j
 import type {AuthUserResponse, UserSession} from '@template/types';
 import {SessionAuthGuard} from "./guards/session-auth.guard.js";
 import {CurrentUser} from "./decorators/current-user.decorator.js";
+import {RateLimitGuard} from "../common/guards/rate-limit.guard.js";
+import {RateLimit} from "../common/decorators/rate-limit.decorator.js";
 
 @Controller('auth')
 export class AuthController {
@@ -23,6 +25,8 @@ export class AuthController {
         private readonly authService: AuthService) {}
 
     @Post('register')
+    @UseGuards(RateLimitGuard)
+    @RateLimit({ limit: 3, ttlSeconds: 60, keyPrefix: 'rl:register' })
     @HttpCode(HttpStatus.CREATED)
     @ResponseMessage('Account registered successfully')
     async register(@Body() dto: RegisterDto): Promise<AuthUserResponse> {
@@ -30,6 +34,8 @@ export class AuthController {
     }
 
     @Post('login')
+    @UseGuards(RateLimitGuard)
+    @RateLimit({ limit: 5, ttlSeconds: 60, keyPrefix: 'rl:login', trackEmail: true })
     @HttpCode(HttpStatus.OK)
     @ResponseMessage('Login successful')
     async login(
