@@ -2,7 +2,7 @@ import {
     Injectable,
     ConflictException,
     UnauthorizedException,
-    Logger,
+    Logger, Inject,
 } from '@nestjs/common';
 import { prisma } from '@template/database';
 import { Argon2Service } from '../security/argon2.service.js';
@@ -20,8 +20,11 @@ export class AuthService {
     private readonly logger = new Logger(AuthService.name);
 
     constructor(
+        @Inject(Argon2Service)
         private readonly argon2Service: Argon2Service,
-        private readonly sessionService: SessionService,
+
+        @Inject(SessionService)
+        private readonly sessionService: SessionService
     ) {}
 
     async register(dto: RegisterDto): Promise<AuthUserResponse> {

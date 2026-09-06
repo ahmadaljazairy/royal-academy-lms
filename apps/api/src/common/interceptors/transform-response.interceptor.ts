@@ -21,7 +21,9 @@ import type {ApiResponse} from "@template/types";
 export class TransformResponseInterceptor<T>
     implements NestInterceptor<T, ApiResponse<T> | T>
 {
-    constructor(private readonly reflector: Reflector) {}
+    constructor(private readonly reflector: Reflector) {
+        this.reflector = reflector ?? new Reflector();
+    }
 
     intercept(
         context: ExecutionContext,

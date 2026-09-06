@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "dev": "tsx watch --env-file=.env src/main.ts",
-    "start": "node --env-file=.env dist/main.js",
+    "dev": "node --watch --import @swc-node/register/esm-register --env-file=.env src/main.ts",    "start": "node --env-file=.env dist/main.js",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
     "clean": "rm -rf dist",
@@ -28,6 +27,8 @@
   },
   "devDependencies": {
     "@nestjs/testing": "^11.2.3",
+    "@swc-node/register": "^1.12.1",
+    "@swc/core": "^1.16.2",
     "@template/eslint-config": "workspace:*",
     "@template/typescript-config": "workspace:*",
     "@types/cookie-parser": "^1.4.10",

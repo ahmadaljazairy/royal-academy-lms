@@ -38,6 +38,15 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+  #docker compose --profile tools up -d redisinsight
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: redisinsight
+    ports:
+      - "127.0.0.1:5540:5540" # Bind strictly to 127.0.0.1 for security
+    profiles: [ "tools" ]
+
 volumes:
   pgdata:
   redisdata:
