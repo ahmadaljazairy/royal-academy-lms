@@ -5,14 +5,16 @@ import {
     Res,
     Req,
     HttpCode,
-    HttpStatus, Inject,
+    HttpStatus, Inject, Get, UseGuards,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
 import { RegisterDto, LoginDto } from './dto/index.js';
 import { ResponseMessage } from '../common/decorators/response.decorators.js';
 import { SESSION_COOKIE_NAME, getSessionCookieOptions } from './auth.constants.js';
-import type { AuthUserResponse } from '@template/types';
+import type {AuthUserResponse, UserSession} from '@template/types';
+import {SessionAuthGuard} from "./guards/session-auth.guard.js";
+import {CurrentUser} from "./decorators/current-user.decorator.js";
 
 @Controller('auth')
 export class AuthController {
@@ -69,5 +71,13 @@ export class AuthController {
         });
 
         return { loggedOut: true };
+    }
+
+    @Get('me')
+    @UseGuards(SessionAuthGuard)
+    @HttpCode(HttpStatus.OK)
+    @ResponseMessage('Authenticated profile retrieved')
+    async getProfile(@CurrentUser() user: UserSession): Promise<UserSession> {
+        return user;
     }
 }
