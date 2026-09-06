@@ -4,9 +4,11 @@ import {
     type ExecutionContext,
     UnauthorizedException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { SessionService } from '../../security/session.service.js';
 import { SESSION_COOKIE_NAME } from '../auth.constants.js';
+import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator.js';
 import type { UserSession } from '@template/types';
 
 export interface AuthenticatedRequest extends Request {
@@ -16,9 +18,21 @@ export interface AuthenticatedRequest extends Request {
 
 @Injectable()
 export class SessionAuthGuard implements CanActivate {
-    constructor(private readonly sessionService: SessionService) {}
+    constructor(
+        private readonly reflector: Reflector,
+        private readonly sessionService: SessionService,
+    ) {}
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
+        const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+            context.getHandler(),
+            context.getClass(),
+        ]);
+
+        if (isPublic) {
+            return true;
+        }
+
         const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
         const sessionId = request.cookies?.[SESSION_COOKIE_NAME] as string | undefined;
 

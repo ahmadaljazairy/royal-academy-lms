@@ -13,10 +13,11 @@ import { RegisterDto, LoginDto } from './dto/index.js';
 import { ResponseMessage } from '../common/decorators/response.decorators.js';
 import { SESSION_COOKIE_NAME, getSessionCookieOptions } from './auth.constants.js';
 import type {AuthUserResponse, UserSession} from '@template/types';
-import {SessionAuthGuard} from "./guards/session-auth.guard.js";
 import {CurrentUser} from "./decorators/current-user.decorator.js";
 import {RateLimitGuard} from "../common/guards/rate-limit.guard.js";
 import {RateLimit} from "../common/decorators/rate-limit.decorator.js";
+import {Public} from "../common/decorators/public.decorator.js";
+import {Roles} from "../common/decorators/roles.decorator.js";
 
 @Controller('auth')
 export class AuthController {
@@ -24,6 +25,7 @@ export class AuthController {
         @Inject(AuthService)
         private readonly authService: AuthService) {}
 
+    @Public()
     @Post('register')
     @UseGuards(RateLimitGuard)
     @RateLimit({ limit: 3, ttlSeconds: 60, keyPrefix: 'rl:register' })
@@ -33,6 +35,7 @@ export class AuthController {
         return this.authService.register(dto);
     }
 
+    @Public()
     @Post('login')
     @UseGuards(RateLimitGuard)
     @RateLimit({ limit: 5, ttlSeconds: 60, keyPrefix: 'rl:login', trackEmail: true })
@@ -54,6 +57,7 @@ export class AuthController {
         return user;
     }
 
+    @Public()
     @Post('logout')
     @HttpCode(HttpStatus.OK)
     @ResponseMessage('Logged out successfully')
@@ -80,10 +84,18 @@ export class AuthController {
     }
 
     @Get('me')
-    @UseGuards(SessionAuthGuard)
     @HttpCode(HttpStatus.OK)
     @ResponseMessage('Authenticated profile retrieved')
     async getProfile(@CurrentUser() user: UserSession): Promise<UserSession> {
         return user;
+    }
+
+    // TESTING : Automatically protected by SessionAuthGuard + evaluated by RolesGuard
+    @Get('admin-check')
+    @Roles('ADMIN')
+    @HttpCode(HttpStatus.OK)
+    @ResponseMessage('Admin resource accessed successfully')
+    async checkAdminAccess(): Promise<{ access: boolean }> {
+        return { access: true };
     }
 }
