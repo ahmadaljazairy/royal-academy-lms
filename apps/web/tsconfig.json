@@ -8,7 +8,16 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
-    "noEmit": true
+    "noEmit": true,
+
+    /* Path Aliasing must live INSIDE compilerOptions */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@/app/*": ["src/app/*"],
+      "@/shared/*": ["src/shared/*"],
+      "@/features/*": ["src/features/*"]
+    }
   },
   "include": ["src/**/*", "vite.config.ts"]
 }

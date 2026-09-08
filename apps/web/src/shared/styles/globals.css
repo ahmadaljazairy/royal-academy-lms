@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+    /* Typography Tokens */
+    --font-headline: "Playfair Display", Georgia, serif;
+    --font-body: "Plus Jakarta Sans", system-ui, sans-serif;
+
+    /* Brand Palette Tokens */
+    --color-primary: #8b1d24;
+    --color-primary-hover: #70171d;
+    --color-secondary: #111827;
+    --color-secondary-hover: #1f2937;
+    --color-tertiary: #fdf2f2;
+    --color-neutral: #6b7280;
+
+    /* Surface & Canvas Mappings */
+    --color-surface: #ffffff;
+    --color-canvas: #f1f4f9;
+}
+
+@layer base {
+    body {
+        font-family: var(--font-body), serif;
+        background-color: var(--color-canvas);
+        color: var(--color-secondary);
+        min-height: 100dvh;
+        @apply antialiased;
+    }
+
+    h1, h2, h3 {
+        font-family: var(--font-headline), serif;
+    }
+}
