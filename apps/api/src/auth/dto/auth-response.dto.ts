@@ -1,7 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ResponseMetaDto } from '../../common/dto/api-response.dto.js';
+import type {
+    UserProfile,
+    UserSession,
+    LogoutResult,
+    ApiSuccessResponse,
+    SystemRole,
+} from '@template/types';
 
-export class UserProfileDto {
+export class UserProfileDto implements UserProfile {
     @ApiProperty({ example: 'usr_cm1349f82000008l07b60g5d7' })
     id!: string;
 
@@ -12,13 +18,13 @@ export class UserProfileDto {
     displayName!: string;
 
     @ApiProperty({ example: 'STUDENT', enum: ['STUDENT', 'INSTRUCTOR', 'ADMIN'] })
-    role!: string;
+    role!: SystemRole;
 
     @ApiProperty({ example: false })
     isEmailVerified!: boolean;
 }
 
-export class UserSessionDto {
+export class UserSessionDto implements UserSession {
     @ApiProperty({ example: 'usr_cm1349f82000008l07b60g5d7' })
     userId!: string;
 
@@ -26,29 +32,43 @@ export class UserSessionDto {
     email!: string;
 
     @ApiProperty({ example: 'STUDENT', enum: ['STUDENT', 'INSTRUCTOR', 'ADMIN'] })
-    role!: string;
+    role!: SystemRole;
 
     @ApiProperty({ example: 1788703200000, description: 'Unix timestamp in milliseconds' })
     createdAt!: number;
 }
 
-export class AuthResponseEnvelopeDto {
+export class LogoutDataDto implements LogoutResult {
     @ApiProperty({ example: true })
-    success!: boolean;
+    loggedOut!: boolean;
+}
 
-    @ApiProperty({ example: 'Account registered successfully' })
+export class AuthResponseEnvelopeDto implements ApiSuccessResponse<UserProfileDto> {
+    @ApiProperty({ example: true })
+    success!: true;
+
+    @ApiProperty({ example: 200 })
+    statusCode!: number;
+
+    @ApiProperty({ example: 'Operation completed successfully' })
     message!: string;
 
     @ApiProperty({ type: UserProfileDto })
     data!: UserProfileDto;
 
-    @ApiProperty({ type: ResponseMetaDto })
-    meta!: ResponseMetaDto;
+    @ApiProperty({ example: 'd2997aca-cdd4-4172-9696-ae5bece225c0' })
+    traceId!: string;
+
+    @ApiProperty({ example: '2026-09-08T18:00:00.000Z' })
+    timestamp!: string;
 }
 
-export class SessionResponseEnvelopeDto {
+export class SessionResponseEnvelopeDto implements ApiSuccessResponse<UserSessionDto> {
     @ApiProperty({ example: true })
-    success!: boolean;
+    success!: true;
+
+    @ApiProperty({ example: 200 })
+    statusCode!: number;
 
     @ApiProperty({ example: 'Authenticated profile retrieved' })
     message!: string;
@@ -56,6 +76,30 @@ export class SessionResponseEnvelopeDto {
     @ApiProperty({ type: UserSessionDto })
     data!: UserSessionDto;
 
-    @ApiProperty({ type: ResponseMetaDto })
-    meta!: ResponseMetaDto;
+    @ApiProperty({ example: 'd2997aca-cdd4-4172-9696-ae5bece225c0' })
+    traceId!: string;
+
+    @ApiProperty({ example: '2026-09-08T18:00:00.000Z' })
+    timestamp!: string;
+}
+
+export class LogoutResponseEnvelopeDto implements ApiSuccessResponse<LogoutDataDto> {
+    @ApiProperty({ example: true })
+    success!: true;
+
+    @ApiProperty({ example: 200 })
+    statusCode!: number;
+
+    @ApiProperty({ example: 'Logged out successfully' })
+    message!: string;
+
+    @ApiProperty({ type: LogoutDataDto })
+    data!: LogoutDataDto;
+
+    @ApiProperty({ example: 'd2997aca-cdd4-4172-9696-ae5bece225c0' })
+    traceId!: string;
+
+    @ApiProperty({ example: '2026-09-08T18:00:00.000Z' })
+    timestamp!: string;
+
 }

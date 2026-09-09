@@ -1,48 +1,39 @@
 import { ApiProperty } from '@nestjs/swagger';
+import type { ApiErrorResponse } from '@template/types';
 
-export class ResponseMetaDto {
-    @ApiProperty({ example: '2026-09-06T14:00:00.000Z' })
-    timestamp!: string;
+export class ApiErrorResponseDto implements ApiErrorResponse {
+    @ApiProperty({ example: false })
+    success!: false;
 
-    @ApiProperty({ example: 'd2997aca-cdd4-4172-9696-ae5bece225c0' })
-    traceId!: string;
-}
-
-export class ErrorDetailDto {
-    @ApiProperty({ example: 'email' })
-    field!: string;
-
-    @ApiProperty({ example: 'A valid email address is required.' })
-    message!: string;
-}
-
-export class ErrorPayloadDto {
     @ApiProperty({ example: 400 })
     statusCode!: number;
 
-    @ApiProperty({ example: 'Bad Request' })
+    @ApiProperty({ example: 'BadRequestException' })
     error!: string;
 
     @ApiProperty({
-        example: 'Validation failed',
-        description: 'High-level error description or an array of validation issues',
+        description: 'High-level error description or an array of validation errors',
+        oneOf: [
+            { type: 'string', example: 'Validation failed' },
+            { type: 'array', items: { type: 'string' }, example: ['email must be an email'] },
+        ],
     })
     message!: string | string[];
 
-    @ApiProperty({ example: '/api/auth/register' })
-    path!: string;
+    @ApiProperty({
+        type: 'object',
+        additionalProperties: false,
+        nullable: true,
+        default: null,
+        example: null,
+        description: 'Always null for error responses',
+    })
+    data!: null;
 
     @ApiProperty({ example: 'd2997aca-cdd4-4172-9696-ae5bece225c0' })
     traceId!: string;
 
-    @ApiProperty({ example: '2026-09-06T14:00:00.000Z' })
+    @ApiProperty({ example: '2026-09-08T18:00:00.000Z' })
     timestamp!: string;
-}
 
-export class ApiErrorResponseDto {
-    @ApiProperty({ example: false })
-    success!: boolean;
-
-    @ApiProperty({ type: ErrorPayloadDto })
-    error!: ErrorPayloadDto;
 }

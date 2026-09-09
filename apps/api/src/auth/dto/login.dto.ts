@@ -1,7 +1,9 @@
+// apps/api/src/auth/dto/login.dto.ts
 import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import type { LoginInput } from '@template/types';
 
-export class LoginDto {
+export class LoginDto implements LoginInput {
     @ApiProperty({
         example: 'academy.student@domain.com',
         description: 'Registered user email address',
@@ -13,7 +15,7 @@ export class LoginDto {
 
     @ApiProperty({
         example: 'SecurePassword2026!',
-        description: 'Plaintext password submitted for Argon2id verification',
+        description: 'Plaintext password for verification',
     })
     @IsString()
     @IsNotEmpty({ message: 'Password is required.' })

@@ -22,6 +22,37 @@ info() { echo -e "\n${BLUE}=== $1 ===${NC}"; }
 trap "rm -f ${COOKIE_JAR}" EXIT
 
 # ==============================================================================
+# ENVELOPE CONTRACT ASSERTION HELPERS
+# ==============================================================================
+
+# Asserts standard flat success contract: ApiSuccessResponse<T>
+assert_flat_success() {
+  local body="$1"
+  local expected_status="$2"
+
+  echo "$body" | grep -q '"success":true' || return 1
+  echo "$body" | grep -q "\"statusCode\":${expected_status}" || return 1
+  echo "$body" | grep -q '"data":' || return 1
+  echo "$body" | grep -q '"traceId":' || return 1
+  echo "$body" | grep -q '"timestamp":' || return 1
+  return 0
+}
+
+# Asserts standard flat error contract: ApiErrorResponse
+assert_flat_error() {
+  local body="$1"
+  local expected_status="$2"
+
+  echo "$body" | grep -q '"success":false' || return 1
+  echo "$body" | grep -q "\"statusCode\":${expected_status}" || return 1
+  echo "$body" | grep -q '"data":null' || return 1
+  echo "$body" | grep -q '"error":' || return 1
+  echo "$body" | grep -q '"traceId":' || return 1
+  echo "$body" | grep -q '"timestamp":' || return 1
+  return 0
+}
+
+# ==============================================================================
 # 1. SWAGGER & OPENAPI CONTRACT VALIDATION
 # ==============================================================================
 info "1. OpenAPI / Swagger Documentation Contracts"
@@ -43,7 +74,7 @@ fi
 # ==============================================================================
 # 2. VALIDATION PIPES & ERROR ENVELOPE FORMATTING
 # ==============================================================================
-info "2. DTO Validation & Envelope Defense"
+info "2. DTO Validation & Flat Error Envelope Defense"
 
 # Case A: Missing required fields and short password
 RESP_400=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/register" \
@@ -53,22 +84,24 @@ RESP_400=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/register" \
 HTTP_CODE=$(echo "$RESP_400" | tail -n1)
 BODY=$(echo "$RESP_400" | sed '$d')
 
-if [ "$HTTP_CODE" -eq 400 ] && echo "$BODY" | grep -q '"traceId"'; then
-  pass "ValidationPipe intercepted invalid payload with HTTP 400 and generated traceId"
+if [ "$HTTP_CODE" -eq 400 ] && assert_flat_error "$BODY" 400; then
+  pass "ValidationPipe rejected invalid payload with compliant flat HTTP 400 envelope"
 else
   fail "Validation failure handling failed. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
 
-# Case B: Stripping forbidden/non-whitelisted fields
+# Case B: Stripping forbidden/non-whitelisted fields (privilege escalation defense)
 RESP_STRIP=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/register" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"whitelisted.${TIMESTAMP}@domain.com\",\"password\":\"${TEST_PASSWORD}\",\"displayName\":\"Tester\",\"role\":\"ADMIN\"}")
 
 HTTP_CODE=$(echo "$RESP_STRIP" | tail -n1)
-if [ "$HTTP_CODE" -eq 400 ]; then
+BODY=$(echo "$RESP_STRIP" | sed '$d')
+
+if [ "$HTTP_CODE" -eq 400 ] && assert_flat_error "$BODY" 400; then
   pass "ForbidNonWhitelisted rejected injected role attribute at HTTP perimeter"
 else
-  fail "Whitelist guard allowed non-whitelisted property through. Received: HTTP ${HTTP_CODE}"
+  fail "Whitelist guard allowed non-whitelisted property through. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
 
 # ==============================================================================
@@ -80,27 +113,31 @@ RESP_UNAUTH=$(curl -s -w "\n%{http_code}" -X GET "${BASE_URL}/auth/me")
 HTTP_CODE=$(echo "$RESP_UNAUTH" | tail -n1)
 BODY=$(echo "$RESP_UNAUTH" | sed '$d')
 
-if [ "$HTTP_CODE" -eq 401 ] && echo "$BODY" | grep -q 'Authentication required'; then
-  pass "Global SessionAuthGuard intercepted unauthenticated request with HTTP 401"
+if [ "$HTTP_CODE" -eq 401 ] && assert_flat_error "$BODY" 401; then
+  pass "Global SessionAuthGuard intercepted unauthenticated request with flat HTTP 401 envelope"
 else
-  fail "Secure-by-default failed to protect /api/auth/me. Received: HTTP ${HTTP_CODE}"
+  fail "Secure-by-default failed to protect /api/auth/me. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
 
 # ==============================================================================
 # 4. USER REGISTRATION (HAPPY PATH & DUPLICATES)
 # ==============================================================================
-info "4. User Registration Flow"
+info "4. User Registration Flow & Conflict Handling"
 
 # Happy Path
-REG_RESP=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/register" \
+REG_RAW=$(curl -s -i -X POST "${BASE_URL}/auth/register" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\",\"displayName\":\"${TEST_NAME}\"}")
 
-HTTP_CODE=$(echo "$REG_RESP" | tail -n1)
-BODY=$(echo "$REG_RESP" | sed '$d')
+HTTP_CODE=$(echo "$REG_RAW" | grep -i "^HTTP/" | tail -n1 | awk '{print $2}')
+BODY=$(echo "$REG_RAW" | sed '1,/^\r\{0,1\}$/d')
+TRACE_HEADER=$(echo "$REG_RAW" | grep -i "^x-trace-id:" | awk '{print $2}' | tr -d '\r')
 
-if [ "$HTTP_CODE" -eq 201 ] && echo "$BODY" | grep -q '"isEmailVerified":false'; then
-  pass "User registered successfully (HTTP 201) with default unverified state"
+if [ "$HTTP_CODE" -eq 201 ] && \
+   assert_flat_success "$BODY" 201 && \
+   echo "$BODY" | grep -q '"isEmailVerified":false' && \
+   echo "$BODY" | grep -q "\"traceId\":\"${TRACE_HEADER}\""; then
+  pass "User registered successfully (HTTP 201 flat envelope with synchronized x-trace-id)"
 else
   fail "Registration failed. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
@@ -110,26 +147,27 @@ DUP_RAW=$(curl -s -i -X POST "${BASE_URL}/auth/register" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\",\"displayName\":\"${TEST_NAME}\"}")
 
-HTTP_CODE=$(echo "$DUP_RAW" | grep "HTTP/" | tail -n1 | awk '{print $2}')
+HTTP_CODE=$(echo "$DUP_RAW" | grep -i "^HTTP/" | tail -n1 | awk '{print $2}')
 
 # If rate limited, extract dynamic Retry-After header, pause, and retry
 if [ "$HTTP_CODE" -eq 429 ]; then
   RETRY_AFTER=$(echo "$DUP_RAW" | grep -i "^retry-after:" | awk '{print $2}' | tr -d '\r')
   WAIT_TIME="${RETRY_AFTER:-60}"
-  echo -e "  ${YELLOW}[WAIT]${NC} Rate limit hit as expected. Sleeping ${WAIT_TIME}s based on Retry-After header..."
+  echo -e "  ${YELLOW}[WAIT]${NC} Rate limit reached as expected. Sleeping ${WAIT_TIME}s based on Retry-After header..."
   sleep "$WAIT_TIME"
 
-  # Retry the duplicate check after the window clears
   DUP_RAW=$(curl -s -i -X POST "${BASE_URL}/auth/register" \
     -H "Content-Type: application/json" \
     -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\",\"displayName\":\"${TEST_NAME}\"}")
-  HTTP_CODE=$(echo "$DUP_RAW" | grep "HTTP/" | tail -n1 | awk '{print $2}')
+  HTTP_CODE=$(echo "$DUP_RAW" | grep -i "^HTTP/" | tail -n1 | awk '{print $2}')
 fi
 
-if [ "$HTTP_CODE" -eq 409 ]; then
-  pass "Duplicate email rejected with HTTP 409 Conflict"
+BODY=$(echo "$DUP_RAW" | sed '1,/^\r\{0,1\}$/d')
+
+if [ "$HTTP_CODE" -eq 409 ] && assert_flat_error "$BODY" 409; then
+  pass "Duplicate email rejected with flat HTTP 409 Conflict envelope"
 else
-  fail "Duplicate registration did not trigger 409. Received: HTTP ${HTTP_CODE}"
+  fail "Duplicate registration did not trigger 409. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
 
 # ==============================================================================
@@ -143,10 +181,12 @@ BAD_LOGIN=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/login" \
   -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"WrongPassword!\"}")
 
 HTTP_CODE=$(echo "$BAD_LOGIN" | tail -n1)
-if [ "$HTTP_CODE" -eq 401 ]; then
-  pass "Argon2id credential mismatch rejected with HTTP 401 Unauthorized"
+BODY=$(echo "$BAD_LOGIN" | sed '$d')
+
+if [ "$HTTP_CODE" -eq 401 ] && assert_flat_error "$BODY" 401; then
+  pass "Argon2id credential mismatch rejected with flat HTTP 401 envelope"
 else
-  fail "Invalid login did not return 401. Received: HTTP ${HTTP_CODE}"
+  fail "Invalid login did not return 401. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
 
 # Valid Credentials
@@ -154,10 +194,16 @@ LOGIN_RESP=$(curl -s -i -c "${COOKIE_JAR}" -X POST "${BASE_URL}/auth/login" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\"}")
 
-if echo "$LOGIN_RESP" | grep -iq "Set-Cookie: sid=" && echo "$LOGIN_RESP" | grep -iq "HttpOnly"; then
-  pass "Session cookie 'sid' set with HttpOnly attribute"
+HTTP_CODE=$(echo "$LOGIN_RESP" | grep -i "^HTTP/" | tail -n1 | awk '{print $2}')
+BODY=$(echo "$LOGIN_RESP" | sed '1,/^\r\{0,1\}$/d')
+
+if [ "$HTTP_CODE" -eq 200 ] && \
+   assert_flat_success "$BODY" 200 && \
+   echo "$LOGIN_RESP" | grep -iq "Set-Cookie: sid=" && \
+   echo "$LOGIN_RESP" | grep -iq "HttpOnly"; then
+  pass "Login issued stateful HttpOnly 'sid' cookie with flat HTTP 200 envelope"
 else
-  fail "Login did not set required HttpOnly session cookie"
+  fail "Login failed or missed session cookie. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
 
 # ==============================================================================
@@ -169,8 +215,10 @@ ME_RESP=$(curl -s -w "\n%{http_code}" -b "${COOKIE_JAR}" -X GET "${BASE_URL}/aut
 HTTP_CODE=$(echo "$ME_RESP" | tail -n1)
 BODY=$(echo "$ME_RESP" | sed '$d')
 
-if [ "$HTTP_CODE" -eq 200 ] && echo "$BODY" | grep -q "${TEST_EMAIL}"; then
-  pass "Active Redis session validated and resolved correctly from cookie"
+if [ "$HTTP_CODE" -eq 200 ] && \
+   assert_flat_success "$BODY" 200 && \
+   echo "$BODY" | grep -q "${TEST_EMAIL}"; then
+  pass "Active Redis session resolved user identity inside flat HTTP 200 envelope"
 else
   fail "Failed to resolve authenticated session. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
@@ -184,8 +232,8 @@ ADMIN_RESP=$(curl -s -w "\n%{http_code}" -b "${COOKIE_JAR}" -X GET "${BASE_URL}/
 HTTP_CODE=$(echo "$ADMIN_RESP" | tail -n1)
 BODY=$(echo "$ADMIN_RESP" | sed '$d')
 
-if [ "$HTTP_CODE" -eq 403 ] && echo "$BODY" | grep -q 'Forbidden resource'; then
-  pass "RolesGuard denied access with HTTP 403 Forbidden (STUDENT cannot access ADMIN route)"
+if [ "$HTTP_CODE" -eq 403 ] && assert_flat_error "$BODY" 403; then
+  pass "RolesGuard denied access with flat HTTP 403 Forbidden envelope (STUDENT blocked from ADMIN)"
 else
   fail "RBAC failed to restrict admin route. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
@@ -196,22 +244,25 @@ fi
 info "8. Distributed Rate Limiting Defense"
 
 RL_HIT_429=false
-# Limit is 5 hits per 60s for login; trigger 7 rapid calls
 for i in {1..7}; do
   RL_RESP=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/login" \
     -H "Content-Type: application/json" \
     -d "{\"email\":\"ratelimit.${TIMESTAMP}@domain.com\",\"password\":\"WrongPassword!\"}")
   CODE=$(echo "$RL_RESP" | tail -n1)
+  RL_BODY=$(echo "$RL_RESP" | sed '$d')
+
   if [ "$CODE" -eq 429 ]; then
-    RL_HIT_429=true
-    break
+    if assert_flat_error "$RL_BODY" 429; then
+      RL_HIT_429=true
+      break
+    fi
   fi
 done
 
 if [ "$RL_HIT_429" = true ]; then
-  pass "Redis sliding-window rate limiter triggered HTTP 429 Too Many Requests"
+  pass "Redis sliding-window rate limiter triggered flat HTTP 429 Too Many Requests envelope"
 else
-  fail "Rate limiter failed to trigger HTTP 429 after exceeding limit"
+  fail "Rate limiter failed to trigger HTTP 429 with flat envelope after exceeding quota"
 fi
 
 # ==============================================================================
@@ -221,33 +272,40 @@ info "9. Session Revocation & Idempotency"
 
 # Revoke Session
 LOGOUT_RESP=$(curl -s -i -b "${COOKIE_JAR}" -c "${COOKIE_JAR}" -X POST "${BASE_URL}/auth/logout")
+HTTP_CODE=$(echo "$LOGOUT_RESP" | grep -i "^HTTP/" | tail -n1 | awk '{print $2}')
+BODY=$(echo "$LOGOUT_RESP" | sed '1,/^\r\{0,1\}$/d')
 
-if echo "$LOGOUT_RESP" | grep -iq "Max-Age=0\|expires="; then
-  pass "Logout cleared session cookie header"
+if [ "$HTTP_CODE" -eq 200 ] && \
+   assert_flat_success "$BODY" 200 && \
+   echo "$BODY" | grep -q '"loggedOut":true' && \
+   echo "$LOGOUT_RESP" | grep -iq "Max-Age=0\|expires="; then
+  pass "Logout evicted Redis session, cleared cookie header, and emitted flat HTTP 200 envelope"
 else
-  fail "Logout did not clear session cookie"
+  fail "Logout did not succeed properly. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
 
 # Verify Redis session key was evicted
 REVOKED_ME=$(curl -s -w "\n%{http_code}" -b "${COOKIE_JAR}" -X GET "${BASE_URL}/auth/me")
 HTTP_CODE=$(echo "$REVOKED_ME" | tail -n1)
+BODY=$(echo "$REVOKED_ME" | sed '$d')
 
-if [ "$HTTP_CODE" -eq 401 ]; then
-  pass "Previous session rejected after revocation (Redis state purged)"
+if [ "$HTTP_CODE" -eq 401 ] && assert_flat_error "$BODY" 401; then
+  pass "Revoked session rejected on subsequent calls (Redis state cleared)"
 else
-  fail "Revoked session was still accepted. Received: HTTP ${HTTP_CODE}"
+  fail "Revoked session was still accepted. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
 
 # Logout Idempotency (Calling logout without an active session)
 IDEMPOTENT_LOGOUT=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/logout")
 HTTP_CODE=$(echo "$IDEMPOTENT_LOGOUT" | tail -n1)
+BODY=$(echo "$IDEMPOTENT_LOGOUT" | sed '$d')
 
-if [ "$HTTP_CODE" -eq 200 ]; then
+if [ "$HTTP_CODE" -eq 200 ] && assert_flat_success "$BODY" 200 && echo "$BODY" | grep -q '"loggedOut":true'; then
   pass "Logout is completely safe and idempotent for unauthenticated users (HTTP 200)"
 else
-  fail "Idempotent logout check failed. Received: HTTP ${HTTP_CODE}"
+  fail "Idempotent logout check failed. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
 
-echo -e "\n${GREEN}====================================================${NC}"
-echo -e "${GREEN}  ALL 13 END-TO-END SECURITY AUDIT CHECKS PASSED  ${NC}"
-echo -e "${GREEN}====================================================${NC}\n"
+echo -e "\n${GREEN}================================================================${NC}"
+echo -e "${GREEN}  ALL 13 END-TO-END SECURITY & FLAT ENVELOPE CHECKS PASSED  ${NC}"
+echo -e "${GREEN}================================================================${NC}\n"

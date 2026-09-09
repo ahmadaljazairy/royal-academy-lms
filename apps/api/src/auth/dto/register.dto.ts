@@ -1,10 +1,12 @@
+// apps/api/src/auth/dto/register.dto.ts
 import { IsEmail, IsNotEmpty, IsString, MinLength, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import type { RegisterInput } from '@template/types';
 
-export class RegisterDto {
+export class RegisterDto implements RegisterInput {
     @ApiProperty({
         example: 'academy.student@domain.com',
-        description: 'Unique email address for account authentication',
+        description: 'Unique email address for authentication',
         format: 'email',
     })
     @IsEmail({}, { message: 'A valid email address is required.' })
@@ -13,7 +15,7 @@ export class RegisterDto {
 
     @ApiProperty({
         example: 'SecurePassword2026!',
-        description: 'Minimum 8-character password hashed with Argon2id',
+        description: 'Argon2id password (minimum 8 characters)',
         minLength: 8,
     })
     @IsString()
@@ -22,7 +24,7 @@ export class RegisterDto {
 
     @ApiProperty({
         example: 'Ahmad Aljazairy',
-        description: 'Display name between 2 and 50 characters',
+        description: 'User display name (2 to 50 characters)',
         minLength: 2,
         maxLength: 50,
     })
