@@ -6,6 +6,7 @@ import { RegisterPage } from '@/features/auth/pages/RegisterPage';
 import { DashboardPage } from '@/app/pages/DashboardPage';
 import { ComponentTestPage } from '@/app/pages/ComponentTestPage';
 import { Spinner } from '@/shared/components/ui';
+import {LandingPage} from "@/features/landing/pages/LandingPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, isLoading } = useAuth();
@@ -40,6 +41,7 @@ export function App() {
         <AuthProvider>
             <BrowserRouter>
                 <Routes>
+                    <Route path="/" element={<LandingPage />} />
                     {/* Public Auth Routes (Redirect to /dashboard if already logged in) */}
                     <Route
                         path="/login"
