@@ -8,42 +8,76 @@ import type {
     RegisterInput,
 } from '@template/types';
 
-// Feature-scoped helper for native fetch
+export class AuthApiError extends Error {
+    public readonly statusCode: number;
+    public readonly error: string;
+    public readonly traceId: string;
+    public readonly messages: string[];
+
+    constructor(payload: Partial<ApiErrorResponse>) {
+        const raw = payload.message;
+        const normalized = Array.isArray(raw)
+            ? raw
+            : [raw || 'An unexpected authentication error occurred'];
+
+        super(normalized[0]);
+        this.name = 'AuthApiError';
+        this.statusCode = payload.statusCode ?? 500;
+        this.error = payload.error ?? 'InternalServerError';
+        this.traceId = payload.traceId ?? 'unassigned';
+        this.messages = normalized;
+
+        Object.setPrototypeOf(this, AuthApiError.prototype);
+    }
+}
+
 async function authFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const response = await fetch(endpoint, {
+    const config: RequestInit = {
         ...options,
         headers: {
             'Content-Type': 'application/json',
             Accept: 'application/json',
             ...options.headers,
         },
-        credentials: 'include', // Enforces transmission of the 'sid' session cookie
-    });
+        // INVARIANT: Transmits and persists HttpOnly Redis 'sid' session cookies
+        credentials: 'include',
+    };
 
-    const body = (await response.json()) as ApiSuccessResponse<T> | ApiErrorResponse;
+    const response = await fetch(endpoint, config);
 
-    if (!response.ok || !body.success) {
-        const errorBody = body as ApiErrorResponse;
-        const message = Array.isArray(errorBody.message)
-            ? errorBody.message.join(', ')
-            : errorBody.message || 'Authentication request failed';
-        throw new Error(message);
+    if (response.status === 204) {
+        return {} as T;
     }
 
-    return body.data;
+    let parsed: unknown;
+    try {
+        parsed = await response.json();
+    } catch {
+        throw new AuthApiError({
+            statusCode: response.status,
+            error: response.statusText || 'NetworkError',
+            message: 'Failed to parse JSON response from server',
+        });
+    }
+
+    if (!response.ok) {
+        throw new AuthApiError(parsed as Partial<ApiErrorResponse>);
+    }
+
+    return (parsed as ApiSuccessResponse<T>).data;
 }
 
 export const authApi = {
-    register: (data: RegisterInput) =>
-        authFetch<UserProfile>('/api/auth/register', {
-            method: 'POST',
-            body: JSON.stringify(data),
-        }),
-
-    login: (data: LoginInput) =>
+    login: (input: LoginInput) =>
         authFetch<UserProfile>('/api/auth/login', {
             method: 'POST',
-            body: JSON.stringify(data),
+            body: JSON.stringify(input),
+        }),
+
+    register: (input: RegisterInput) =>
+        authFetch<UserProfile>('/api/auth/register', {
+            method: 'POST',
+            body: JSON.stringify(input),
         }),
 
     getProfile: () =>

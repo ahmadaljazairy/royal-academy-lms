@@ -1,77 +1,80 @@
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-import { BrandLogo, Button } from '@/shared/components/ui';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from '@/features/auth/context/AuthContext';
+import { LoginPage } from '@/features/auth/pages/LoginPage';
+import { RegisterPage } from '@/features/auth/pages/RegisterPage';
+import { DashboardPage } from '@/app/pages/DashboardPage';
 import { ComponentTestPage } from '@/app/pages/ComponentTestPage';
+import { Spinner } from '@/shared/components/ui';
 
-function SmokeTestPage() {
-    return (
-        <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-canvas">
-            <main className="w-full max-w-xl p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-slate-200/80">
-                {/* Header */}
-                <div className="border-b border-slate-100 pb-4 flex items-center justify-between">
-                    <div>
-                        <h1 className="text-xl font-bold text-secondary">
-                            Configuration Smoke Test
-                        </h1>
-                        <p className="text-xs text-neutral mt-1">
-                            Verifying Tailwind v4 theme tokens, path aliases, and brand assets.
-                        </p>
-                    </div>
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+    const { isAuthenticated, isLoading } = useAuth();
 
-                    <Link to="/test-components">
-                        <Button size="sm" variant="outline">
-                            UI Sandbox →
-                        </Button>
-                    </Link>
-                </div>
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+                <Spinner size="lg" className="text-[var(--color-primary)]" />
+            </div>
+        );
+    }
 
-                {/* Logo Variations */}
-                <div className="space-y-6">
-                    <section className="space-y-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-neutral">
-              Default (Size: md, Linked)
-            </span>
-                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                            <BrandLogo />
-                        </div>
-                    </section>
+    return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+}
 
-                    <section className="space-y-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-neutral">
-              Large (Size: lg, Linked)
-            </span>
-                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                            <BrandLogo size="lg" />
-                        </div>
-                    </section>
+function PublicAuthRoute({ children }: { children: React.ReactNode }) {
+    const { isAuthenticated, isLoading } = useAuth();
 
-                    <section className="space-y-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-neutral">
-              Emblem Only (Size: sm, Unlinked)
-            </span>
-                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                            <BrandLogo size="sm" showWordmark={false} disableLink />
-                        </div>
-                    </section>
-                </div>
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+                <Spinner size="lg" className="text-[var(--color-primary)]" />
+            </div>
+        );
+    }
 
-                {/* Palette Token Verification */}
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-medium">
-                    <span className="text-primary">● Primary Crimson</span>
-                    <span className="text-secondary">● Secondary Navy</span>
-                    <span className="text-neutral">● Neutral Slate</span>
-                </div>
-            </main>
-        </div>
-    );
+    return isAuthenticated ? <Navigate to="/dashboard" replace /> : <>{children}</>;
 }
 
 export function App() {
     return (
-        <BrowserRouter>
-            <Routes>
-                <Route path="/" element={<SmokeTestPage />} />
-                <Route path="/test-components" element={<ComponentTestPage />} />
-            </Routes>
-        </BrowserRouter>
+        <AuthProvider>
+            <BrowserRouter>
+                <Routes>
+                    {/* Public Auth Routes (Redirect to /dashboard if already logged in) */}
+                    <Route
+                        path="/login"
+                        element={
+                            <PublicAuthRoute>
+                                <LoginPage />
+                            </PublicAuthRoute>
+                        }
+                    />
+                    <Route
+                        path="/register"
+                        element={
+                            <PublicAuthRoute>
+                                <RegisterPage />
+                            </PublicAuthRoute>
+                        }
+                    />
+
+                    {/* Protected Routes (Require active Redis session cookie) */}
+                    <Route
+                        path="/dashboard"
+                        element={
+                            <ProtectedRoute>
+                                <DashboardPage />
+                            </ProtectedRoute>
+                        }
+                    />
+
+                    {/* Playground / Sandbox */}
+                    <Route path="/test-components" element={<ComponentTestPage />} />
+
+                    {/* Catch-all redirect */}
+                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                </Routes>
+            </BrowserRouter>
+        </AuthProvider>
     );
 }
