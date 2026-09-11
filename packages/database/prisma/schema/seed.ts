@@ -40,6 +40,7 @@ async function main() {
         where: { email: 'admin@royalacademy.com' },
         update: {
             passwordHash: securePasswordHash,
+            termsAcceptedAt: new Date(),
         },
         create: {
             email: 'admin@royalacademy.com',
@@ -47,6 +48,7 @@ async function main() {
             displayName: 'System Administrator',
             role: 'ADMIN',
             isEmailVerified: true,
+            termsAcceptedAt: new Date(),
         },
     });
 

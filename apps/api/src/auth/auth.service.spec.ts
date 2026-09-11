@@ -3,6 +3,7 @@ import assert from 'node:assert';
 import { AuthService } from './auth.service.js';
 import type { Argon2Service } from '../security/argon2.service.js';
 import type { SessionService } from '../security/session.service.js';
+import type {PrismaService} from "../common/prisma/prisma.service.js";
 
 describe('AuthService', () => {
     let authService: AuthService;
@@ -27,9 +28,18 @@ describe('AuthService', () => {
             destroySession: async () => true,
         };
 
+        const mockPrisma = {
+            user: {
+                findUnique: jest.fn(),
+                create: jest.fn(),
+                update: jest.fn(),
+            },
+        };
+
         authService = new AuthService(
             mockArgon2 as Argon2Service,
             mockSession as SessionService,
+            mockPrisma as unknown as PrismaService,
         );
     });
 

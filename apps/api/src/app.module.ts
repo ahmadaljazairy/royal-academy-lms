@@ -9,9 +9,10 @@ import {AllExceptionsFilter} from "./common/filters/all-exceptions.filter.js";
 import {AuthModule} from "./auth/auth.module.js";
 import {SessionAuthGuard} from "./auth/guards/session-auth.guard.js";
 import {RolesGuard} from "./common/guards/roles.guard.js";
+import {PrismaModule} from "./common/prisma/prisma.module.js";
 
 @Module({
-    imports: [SecurityModule, RedisModule, AuthModule],
+    imports: [SecurityModule, RedisModule, AuthModule, PrismaModule],
     controllers: [AppController],
     providers: [AppService,
         {

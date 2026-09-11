@@ -1,23 +1,16 @@
-model EmailVerification {
-  id     String @id @default(uuid())
-  token  String @unique
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+model SecurityAuditLog {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  event     String
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
 
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-}
-
-model PasswordResetToken {
-  id     String @id @default(uuid())
-  token  String @unique
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([event])
+  @@index([createdAt])
+  @@map("security_audit_logs")
 }

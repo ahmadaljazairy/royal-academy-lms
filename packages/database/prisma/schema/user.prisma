@@ -5,18 +5,17 @@ enum Role {
 }
 
 model User {
-  id              String  @id @default(uuid())
-  email           String  @unique
-  passwordHash    String
+  id              String    @id @default(cuid())
+  email           String    @unique
   displayName     String
-  profilePhoto    String?
-  role            Role    @default(STUDENT)
-  isEmailVerified Boolean @default(false)
+  passwordHash    String
+  role            Role      @default(STUDENT)
+  isEmailVerified Boolean   @default(false)
+  termsAcceptedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  auditLogs SecurityAuditLog[]
 
-  // Relational mappings
-  emailVerifications  EmailVerification[]
-  passwordResetTokens PasswordResetToken[]
+  @@map("users")
 }

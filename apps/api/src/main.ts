@@ -6,15 +6,68 @@ import { AppModule } from "./app.module.js";
 import cookieParser from "cookie-parser";
 import {DocumentBuilder, SwaggerModule} from "@nestjs/swagger";
 import {SESSION_COOKIE_NAME} from "./auth/auth.constants.js";
+import helmet from 'helmet';
 
 async function bootstrap(): Promise<void> {
     const logger = new Logger("Bootstrap");
     const app = await NestFactory.create(AppModule);
     const port = process.env["PORT"] ? Number(process.env["PORT"]) : 3000;
 
-    app.enableCors();
-    app.enableShutdownHooks();
+    // ---------------------------------------------------------------------------
+    // Perimeter Security Headers (Helmet)
+    // ---------------------------------------------------------------------------
+    app.use(
+        helmet({
+            // Swagger UI requires inline scripts/styles; loosen CSP in non-production
+            contentSecurityPolicy:
+                process.env.NODE_ENV === 'production'
+                    ? {
+                        directives: {
+                            defaultSrc: ["'self'"],
+                            scriptSrc: ["'self'"],
+                            styleSrc: ["'self'", "'unsafe-inline'"],
+                            imgSrc: ["'self'", 'data:', 'validator.swagger.io'],
+                        },
+                    }
+                    : false,
+            crossOriginEmbedderPolicy: false,
+        }),
+    );
 
+    // ---------------------------------------------------------------------------
+    // Strict Parameterized CORS
+    // ---------------------------------------------------------------------------
+    const allowedOrigins = process.env.CORS_ORIGINS
+        ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim())
+        : ['http://localhost:3000', 'http://localhost:5173'];
+
+    app.enableCors({
+        origin: (
+            origin: string | undefined,
+            callback: (err: Error | null, allow?: boolean) => void,
+        ) => {
+            // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+            if (!origin || allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                callback(new Error(`CORS blocked for origin: ${origin}`));
+            }
+        },
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowedHeaders: [
+            'Content-Type',
+            'Authorization',
+            'x-trace-id',
+            'x-request-id',
+            'x-correlation-id',
+        ],
+        exposedHeaders: ['x-trace-id'],
+    });
+
+    // ---------------------------------------------------------------------------
+    // Middlewares & Global Pipes
+    // ---------------------------------------------------------------------------
     app.use(cookieParser());
 
     app.useGlobalPipes(
@@ -25,6 +78,9 @@ async function bootstrap(): Promise<void> {
         }),
     );
 
+    // ---------------------------------------------------------------------------
+    // API Prefix & Documentation
+    // ---------------------------------------------------------------------------
     app.setGlobalPrefix('api');
 
     const swaggerConfig = new DocumentBuilder()
@@ -55,6 +111,8 @@ async function bootstrap(): Promise<void> {
         },
         customSiteTitle: 'Royal Academy API Docs',
     });
+
+    app.enableShutdownHooks();
 
     await app.listen(port);
     logger.log(`Server running on http://localhost:${port}`);

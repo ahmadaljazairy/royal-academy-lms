@@ -2,13 +2,13 @@ import {
     Injectable,
     ConflictException,
     UnauthorizedException,
-    Logger, Inject,
+    Logger,
 } from '@nestjs/common';
-import { prisma } from '@template/database';
 import { Argon2Service } from '../security/argon2.service.js';
 import { SessionService, type SessionResult } from '../security/session.service.js';
 import type { RegisterDto, LoginDto } from './dto/index.js';
 import type { AuthUserResponse, SystemRole } from '@template/types';
+import { PrismaService } from '../common/prisma/prisma.service.js';
 
 export interface LoginResult {
     session: SessionResult;
@@ -20,15 +20,13 @@ export class AuthService {
     private readonly logger = new Logger(AuthService.name);
 
     constructor(
-        @Inject(Argon2Service)
         private readonly argon2Service: Argon2Service,
-
-        @Inject(SessionService)
-        private readonly sessionService: SessionService
+        private readonly sessionService: SessionService,
+        private readonly prisma: PrismaService,
     ) {}
 
     async register(dto: RegisterDto): Promise<AuthUserResponse> {
-        const existingUser = await prisma.user.findUnique({
+        const existingUser = await this.prisma.user.findUnique({
             where: { email: dto.email },
             select: { id: true },
         });
@@ -39,7 +37,7 @@ export class AuthService {
 
         const passwordHash = await this.argon2Service.hashPassword(dto.password);
 
-        const user = await prisma.user.create({
+        const user = await this.prisma.user.create({
             data: {
                 email: dto.email,
                 passwordHash,
@@ -66,7 +64,7 @@ export class AuthService {
     }
 
     async login(dto: LoginDto): Promise<LoginResult> {
-        const user = await prisma.user.findUnique({
+        const user = await this.prisma.user.findUnique({
             where: { email: dto.email },
             select: {
                 id: true,
