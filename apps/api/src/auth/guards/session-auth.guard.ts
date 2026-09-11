@@ -6,10 +6,10 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
-import { SessionService } from '../../security/session.service.js';
 import { SESSION_COOKIE_NAME } from '../auth.constants.js';
-import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator.js';
 import type { UserSession } from '@template/types';
+import  {SessionService} from "../../common/security/session.service.js";
+import {IS_PUBLIC_KEY} from "../../common/decorators/public.decorator.js";
 
 export interface AuthenticatedRequest extends Request {
     user: UserSession;
@@ -37,7 +37,9 @@ export class SessionAuthGuard implements CanActivate {
         const sessionId = request.cookies?.[SESSION_COOKIE_NAME] as string | undefined;
 
         if (!sessionId) {
-            throw new UnauthorizedException('Authentication required. No active session found.');
+            throw new UnauthorizedException(
+                'Authentication required. No active session found.',
+            );
         }
 
         const session = await this.sessionService.getSession(sessionId);

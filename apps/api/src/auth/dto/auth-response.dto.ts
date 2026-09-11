@@ -4,7 +4,7 @@ import type {
     UserSession,
     LogoutResult,
     ApiSuccessResponse,
-    SystemRole,
+    Role,
 } from '@template/types';
 
 export class UserProfileDto implements UserProfile {
@@ -18,7 +18,7 @@ export class UserProfileDto implements UserProfile {
     displayName!: string;
 
     @ApiProperty({ example: 'STUDENT', enum: ['STUDENT', 'INSTRUCTOR', 'ADMIN'] })
-    role!: SystemRole;
+    role!: Role;
 
     @ApiProperty({ example: false })
     isEmailVerified!: boolean;
@@ -32,7 +32,7 @@ export class UserSessionDto implements UserSession {
     email!: string;
 
     @ApiProperty({ example: 'STUDENT', enum: ['STUDENT', 'INSTRUCTOR', 'ADMIN'] })
-    role!: SystemRole;
+    role!: Role;
 
     @ApiProperty({ example: 1788703200000, description: 'Unix timestamp in milliseconds' })
     createdAt!: number;

@@ -1,6 +1,5 @@
-// apps/api/src/auth/dto/login.dto.ts
-import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import {IsBoolean, IsEmail, IsNotEmpty, IsOptional, IsString} from 'class-validator';
+import {ApiProperty, ApiPropertyOptional} from '@nestjs/swagger';
 import type { LoginInput } from '@template/types';
 
 export class LoginDto implements LoginInput {
@@ -20,4 +19,13 @@ export class LoginDto implements LoginInput {
     @IsString()
     @IsNotEmpty({ message: 'Password is required.' })
     password!: string;
+
+    @ApiPropertyOptional({
+        description: 'Persist session across browser restarts for 30 days',
+        example: true,
+        default: false,
+    })
+    @IsOptional()
+    @IsBoolean({ message: 'rememberMe must be a boolean value.' })
+    rememberMe?: boolean;
 }

@@ -4,15 +4,27 @@ import {
     UnauthorizedException,
     Logger,
 } from '@nestjs/common';
-import { Argon2Service } from '../security/argon2.service.js';
-import { SessionService, type SessionResult } from '../security/session.service.js';
+
+import type { AuthUserResponse, Role } from '@template/types';
+
 import type { RegisterDto, LoginDto } from './dto/index.js';
-import type { AuthUserResponse, SystemRole } from '@template/types';
+import {
+    type SessionResult,
+    SessionService,
+    SESSION_TTL_HOURS,
+} from '../common/security/session.service.js';
 import { PrismaService } from '../common/prisma/prisma.service.js';
+import { Argon2Service } from '../common/security/argon2.service.js';
+import {AuditLogService, SecurityAuditEvent} from "../common/audit/audit-log.service.js";
 
 export interface LoginResult {
     session: SessionResult;
     user: AuthUserResponse;
+}
+
+export interface RequestMetadata {
+    ipAddress?: string;
+    userAgent?: string;
 }
 
 @Injectable()
@@ -23,12 +35,19 @@ export class AuthService {
         private readonly argon2Service: Argon2Service,
         private readonly sessionService: SessionService,
         private readonly prisma: PrismaService,
+        private readonly audit: AuditLogService
     ) {}
 
-    async register(dto: RegisterDto): Promise<AuthUserResponse> {
+
+    async register(
+        dto: RegisterDto,
+        metadata?: RequestMetadata,
+    ): Promise<AuthUserResponse> {
+        const normalizedEmail = dto.email.toLowerCase();
+
         const existingUser = await this.prisma.user.findUnique({
-            where: { email: dto.email },
-            select: { id: true },
+            where: {email: normalizedEmail},
+            select: {id: true},
         });
 
         if (existingUser) {
@@ -36,12 +55,14 @@ export class AuthService {
         }
 
         const passwordHash = await this.argon2Service.hashPassword(dto.password);
+        const termsAcceptedAt = new Date();
 
         const user = await this.prisma.user.create({
             data: {
-                email: dto.email,
+                email: normalizedEmail,
                 passwordHash,
                 displayName: dto.displayName,
+                termsAcceptedAt,
             },
             select: {
                 id: true,
@@ -52,20 +73,33 @@ export class AuthService {
             },
         });
 
+        // Persist immutable audit entry
+        await this.audit.record({
+            userId: user.id,
+            event: SecurityAuditEvent.AUTH_REGISTER,
+            ipAddress: metadata?.ipAddress,
+            userAgent: metadata?.userAgent,
+            metadata: {
+                email: user.email,
+                termsAcceptedAt: termsAcceptedAt.toISOString(),
+            },
+        });
+
         this.logger.log(`New user registered: ${user.email} (${user.id})`);
 
         return {
             id: user.id,
             email: user.email,
             displayName: user.displayName,
-            role: user.role as SystemRole,
+            role: user.role as Role,
             isEmailVerified: user.isEmailVerified,
         };
     }
 
+
     async login(dto: LoginDto): Promise<LoginResult> {
         const user = await this.prisma.user.findUnique({
-            where: { email: dto.email },
+            where: { email: dto.email.toLowerCase() },
             select: {
                 id: true,
                 email: true,
@@ -76,7 +110,6 @@ export class AuthService {
             },
         });
 
-        // Constant-time mitigation against user enumeration
         if (!user) {
             throw new UnauthorizedException('Invalid email or password.');
         }
@@ -90,11 +123,18 @@ export class AuthService {
             throw new UnauthorizedException('Invalid email or password.');
         }
 
-        const sessionResult = await this.sessionService.createSession({
-            userId: user.id,
-            email: user.email,
-            role: user.role as SystemRole,
-        });
+        const ttlHours = dto.rememberMe
+            ? SESSION_TTL_HOURS.REMEMBER_ME
+            : SESSION_TTL_HOURS.STANDARD;
+
+        const sessionResult = await this.sessionService.createSession(
+            {
+                userId: user.id,
+                email: user.email,
+                role: user.role as Role,
+            },
+            ttlHours,
+        );
 
         this.logger.log(`User logged in: ${user.email} (${user.id})`);
 
@@ -104,12 +144,11 @@ export class AuthService {
                 id: user.id,
                 email: user.email,
                 displayName: user.displayName,
-                role: user.role as SystemRole,
+                role: user.role as Role,
                 isEmailVerified: user.isEmailVerified,
             },
         };
     }
-
     async logout(sessionId: string): Promise<boolean> {
         if (!sessionId) {
             return false;

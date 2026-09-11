@@ -6,8 +6,9 @@ import {
     Res,
     Req,
     HttpCode,
+    Headers,
     HttpStatus,
-    UseGuards,
+    UseGuards, Ip,
 } from '@nestjs/common';
 import {
     ApiTags,
@@ -111,8 +112,12 @@ export class AuthController {
         description: 'Rate limit exceeded (sliding window counter triggered).',
         type: ApiErrorResponseDto,
     })
-    async register(@Body() dto: RegisterDto): Promise<AuthUserResponse> {
-        return this.authService.register(dto);
+    async register(
+        @Body() dto: RegisterDto,
+        @Ip() ipAddress: string,
+        @Headers('user-agent') userAgent: string | undefined,
+    ): Promise<AuthUserResponse> {
+        return this.authService.register(dto, {ipAddress, userAgent});
     }
 
     /**
@@ -165,10 +170,19 @@ export class AuthController {
     ): Promise<AuthUserResponse> {
         const { session, user } = await this.authService.login(dto);
 
+        const cookieOptions = {
+            ...getSessionCookieOptions(),
+            ...(dto.rememberMe ? { expires: session.expiresAt } : {}),
+        };
+
+        if (!dto.rememberMe) {
+            delete cookieOptions.maxAge;
+        }
+
         response.cookie(
             SESSION_COOKIE_NAME,
             session.sessionId,
-            getSessionCookieOptions(),
+            cookieOptions,
         );
 
         return user;
@@ -205,13 +219,8 @@ export class AuthController {
             await this.authService.logout(sessionId);
         }
 
-        const cookieOptions = getSessionCookieOptions();
-        response.clearCookie(SESSION_COOKIE_NAME, {
-            httpOnly: cookieOptions.httpOnly,
-            secure: cookieOptions.secure,
-            sameSite: cookieOptions.sameSite,
-            path: cookieOptions.path,
-        });
+        const { maxAge: _maxAge, expires: _expires, ...clearOptions } = getSessionCookieOptions();
+        response.clearCookie(SESSION_COOKIE_NAME, clearOptions);
 
         return { loggedOut: true };
     }

@@ -8,7 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator.js';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
 import type { AuthenticatedRequest } from '../../auth/guards/session-auth.guard.js';
-import type { SystemRole } from '@template/types';
+import type { Role } from '@template/types';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -24,7 +24,7 @@ export class RolesGuard implements CanActivate {
             return true;
         }
 
-        const requiredRoles = this.reflector.getAllAndOverride<SystemRole[]>(ROLES_KEY, [
+        const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
             context.getHandler(),
             context.getClass(),
         ]);

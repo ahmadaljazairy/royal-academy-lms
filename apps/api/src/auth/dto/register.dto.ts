@@ -1,5 +1,5 @@
 // apps/api/src/auth/dto/register.dto.ts
-import { IsEmail, IsNotEmpty, IsString, MinLength, MaxLength } from 'class-validator';
+import {IsEmail, IsNotEmpty, IsString, MinLength, MaxLength, IsBoolean, Equals} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import type { RegisterInput } from '@template/types';
 
@@ -32,4 +32,14 @@ export class RegisterDto implements RegisterInput {
     @MinLength(2, { message: 'Display name must be at least 2 characters.' })
     @MaxLength(50, { message: 'Display name cannot exceed 50 characters.' })
     displayName!: string;
+
+    @ApiProperty({
+        description: 'Legal acknowledgment and acceptance of terms and privacy policy',
+        example: true,
+    })
+    @IsBoolean({ message: 'termsAccepted must be a boolean value.' })
+    @Equals(true, {
+        message: 'You must accept the terms of service and privacy policy to register.',
+    })
+    termsAccepted!: boolean;
 }
