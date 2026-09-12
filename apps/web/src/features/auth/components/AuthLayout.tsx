@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { BrandLogo } from '@/shared/components/ui';
+import {MinimalHeader} from '@/shared/components/ui';
 
 interface AuthLayoutProps {
     children: React.ReactNode;
@@ -13,18 +13,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-162.5 h-162.5 bg-red-100/40 rounded-full blur-3xl -z-10" />
 
             {/* Top Navigation */}
-            <header className="w-full px-6 py-5 sm:px-12 flex items-center justify-between">
-                <BrandLogo size="md" />
-                <Link
-                    to="/"
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-primary transition-colors"
-                >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                    </svg>
-                    Back to Home
-                </Link>
-            </header>
+            <MinimalHeader backTo="/" backLabel="Back to Home" />
 
             {/* Centered Main Form Container */}
             <main className="flex-1 flex items-center justify-center p-4 sm:p-6">

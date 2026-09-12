@@ -1,14 +1,13 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/features/auth/context/AuthContext';
-import { LoginPage } from '@/features/auth/pages/LoginPage';
-import { RegisterPage } from '@/features/auth/pages/RegisterPage';
 import { DashboardPage } from '@/app/pages/DashboardPage';
 import { ComponentTestPage } from '@/app/pages/ComponentTestPage';
 import { Spinner } from '@/shared/components/ui';
 import {LandingPage} from "@/features/landing/pages/LandingPage";
-import {PrivacyPolicyPage} from "@/app/pages/PrivacyPolicyPage";
-import {TermsOfServicePage} from "@/app/pages/TermsOfServicePage";
+
+import {LoginPage, RegisterPage} from "@/features/auth";
+import {PrivacyPolicyPage, TermsOfServicePage} from "@/features/legal";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, isLoading } = useAuth();
@@ -16,7 +15,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
-                <Spinner size="lg" className="text-[var(--color-primary)]" />
+                <Spinner size="lg" className="text-primary" />
             </div>
         );
     }
@@ -30,7 +29,7 @@ function PublicAuthRoute({ children }: { children: React.ReactNode }) {
     if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
-                <Spinner size="lg" className="text-[var(--color-primary)]" />
+                <Spinner size="lg" className="text-primary" />
             </div>
         );
     }
