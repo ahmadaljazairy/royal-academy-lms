@@ -16,19 +16,23 @@ export function RegisterPage() {
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMessages, setErrorMessages] = useState<string[] | null>(null);
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setErrorMessages(null);
 
         if (!agreeTerms) {
-            setErrorMessages(['You must accept the Terms of Service and Privacy Policy.']);
+            setErrorMessages(['You must accept the Terms of Service and Privacy Policy to continue.']);
             return;
         }
 
         setIsSubmitting(true);
         try {
-            await register({ displayName, email, password });
+            await register({
+                displayName,
+                email,
+                password,
+                termsAccepted: agreeTerms,
+            });
             navigate('/dashboard');
         } catch (err) {
             if (err instanceof AuthApiError) {
@@ -46,12 +50,12 @@ export function RegisterPage() {
             <div className="space-y-6">
                 {/* Header Badge & Title */}
                 <div className="text-center space-y-2">
-                    <div className="mx-auto w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-[var(--color-primary)]">
+                    <div className="mx-auto w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-primary">
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                         </svg>
                     </div>
-                    <span className="block text-xs font-bold tracking-widest uppercase text-[var(--color-primary)]">
+                    <span className="block text-xs font-bold tracking-widest uppercase text-primary">
             REGISTRATION
           </span>
                     <h1
@@ -144,16 +148,18 @@ export function RegisterPage() {
                             <input
                                 type="checkbox"
                                 checked={agreeTerms}
+                                id="agreeTerms"
+                                name="agreeTerms"
                                 onChange={(e) => setAgreeTerms(e.target.checked)}
-                                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
                             />
                             <span>
                 I agree to the{' '}
-                                <Link to="/terms" className="font-semibold text-[var(--color-primary)] hover:underline">
+                                <Link to="/terms" className="font-semibold text-primary hover:underline">
                   Terms of Service
                 </Link>{' '}
                                 and{' '}
-                                <Link to="/privacy" className="font-semibold text-[var(--color-primary)] hover:underline">
+                                <Link to="/privacy" className="font-semibold text-primary hover:underline">
                   Privacy Policy
                 </Link>
                 .
@@ -173,7 +179,7 @@ export function RegisterPage() {
                 {/* Bottom Switch Pill Box */}
                 <div className="rounded-2xl bg-[#F0F4F8] p-4 text-center text-xs text-slate-600">
                     Already have an account?{' '}
-                    <Link to="/login" className="font-semibold text-[var(--color-primary)] hover:underline ml-1">
+                    <Link to="/login" className="font-semibold text-primary hover:underline ml-1">
                         Sign In
                     </Link>
                 </div>

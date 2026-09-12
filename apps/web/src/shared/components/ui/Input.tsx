@@ -68,11 +68,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
                         disabled={disabled}
                         aria-invalid={Boolean(error)}
                         aria-describedby={error ? errorId : helperText ? helperId : undefined}
-                        className={`w-full rounded-xl border py-3 text-sm transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 disabled:cursor-not-allowed disabled:opacity-60 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden ${
+                        className={`w-full rounded-xl border py-3 text-sm transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60 [&::-ms-reveal]:hidden ${
                             leftIcon ? 'pl-10' : 'pl-4'
                         } ${rightElement ? 'pr-11' : 'pr-4'} ${
                             error
-                                ? 'border-red-500 bg-red-50/50 focus:border-red-500 focus:ring-red-500/20'
+                                ? 'bg-red-50/50 focus:border-red-500 focus:ring-red-500/20'
                                 : variantClasses
                         } ${className}`}
                         {...props}

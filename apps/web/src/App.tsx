@@ -7,6 +7,8 @@ import { DashboardPage } from '@/app/pages/DashboardPage';
 import { ComponentTestPage } from '@/app/pages/ComponentTestPage';
 import { Spinner } from '@/shared/components/ui';
 import {LandingPage} from "@/features/landing/pages/LandingPage";
+import {PrivacyPolicyPage} from "@/app/pages/PrivacyPolicyPage";
+import {TermsOfServicePage} from "@/app/pages/TermsOfServicePage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, isLoading } = useAuth();
@@ -59,6 +61,9 @@ export function App() {
                             </PublicAuthRoute>
                         }
                     />
+
+                    <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                    <Route path="/terms" element={<TermsOfServicePage />} />
 
                     {/* Protected Routes (Require active Redis session cookie) */}
                     <Route

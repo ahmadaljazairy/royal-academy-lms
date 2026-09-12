@@ -22,7 +22,7 @@ export function LoginPage() {
         setIsSubmitting(true);
 
         try {
-            await login({ email, password });
+            await login({ email, password, rememberMe });
             navigate('/dashboard');
         } catch (err) {
             if (err instanceof AuthApiError) {
@@ -40,12 +40,12 @@ export function LoginPage() {
             <div className="space-y-6">
                 {/* Header Badge & Title */}
                 <div className="text-center space-y-2">
-                    <div className="mx-auto w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-[var(--color-primary)]">
+                    <div className="mx-auto w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-primary">
                         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M12 3L1 9L12 15L21 10.09V17H23V9M5 13.18V17.18L12 21L19 17.18V13.18L12 17L5 13.18Z" />
                         </svg>
                     </div>
-                    <span className="block text-xs font-bold tracking-widest uppercase text-[var(--color-primary)]">
+                    <span className="block text-xs font-bold tracking-widest uppercase text-primary">
             LOGIN
           </span>
                     <h1
@@ -123,15 +123,17 @@ export function LoginPage() {
                         <label className="flex items-center gap-2 cursor-pointer select-none text-slate-600">
                             <input
                                 type="checkbox"
+                                id="rememberMe"
+                                name="rememberMe"
                                 checked={rememberMe}
                                 onChange={(e) => setRememberMe(e.target.checked)}
-                                className="w-4 h-4 rounded border-slate-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                                className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
                             />
                             Remember me
                         </label>
                         <Link
                             to="/forgot-password"
-                            className="font-semibold text-[var(--color-primary)] hover:underline"
+                            className="font-semibold text-primary hover:underline"
                         >
                             Forgot Password?
                         </Link>
@@ -148,7 +150,7 @@ export function LoginPage() {
 
                 <p className="text-center text-xs text-slate-500 pt-2">
                     Don't have an account?{' '}
-                    <Link to="/register" className="font-semibold text-[var(--color-primary)] hover:underline">
+                    <Link to="/register" className="font-semibold text-primary hover:underline">
                         Sign Up
                     </Link>
                 </p>
