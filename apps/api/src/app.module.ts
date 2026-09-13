@@ -12,9 +12,24 @@ import {PrismaModule} from "./common/prisma/prisma.module.js";
 import {AuditModule} from "./common/audit/audit.module.js";
 import {RedisModule} from "./common/redis/redis.module.js";
 import {SecurityModule} from "./common/security/security.module.js";
+import {BullModule} from "@nestjs/bullmq";
+import {EmailModule} from "./common/email/email.module.js";
 
 @Module({
-    imports: [SecurityModule, RedisModule, AuditModule, AuthModule, PrismaModule],
+    imports: [
+        SecurityModule,
+        RedisModule,
+        AuditModule,
+        AuthModule,
+        EmailModule,
+        PrismaModule,
+        BullModule.forRoot({
+            connection: {
+                host: process.env.REDIS_HOST || '127.0.0.1',
+                port: Number(process.env.REDIS_PORT || 6379),
+            },
+        }),
+    ],
     controllers: [AppController],
     providers: [AppService,
         {

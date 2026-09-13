@@ -57,7 +57,7 @@ import {
     LoginDto,
     AuthResponseEnvelopeDto,
     SessionResponseEnvelopeDto,
-    LogoutResponseEnvelopeDto,
+    LogoutResponseEnvelopeDto, VerifyEmailDto, ResendVerificationDto,
 } from './dto/index.js';
 
 /**
@@ -292,5 +292,91 @@ export class AuthController {
     })
     async checkAdminAccess(): Promise<{ access: boolean }> {
         return { access: true };
+    }
+
+    // ===========================================================================
+    // 4. EMAIL VERIFICATION
+    // ===========================================================================
+
+    /**
+     * Verify account email address using an ephemeral token.
+     *
+     * Consumes a single-use SHA-256 hashed token from Redis via atomic `GETDEL`.
+     * Upon successful redemption, marks `isEmailVerified: true` in PostgreSQL.
+     */
+    @Public()
+    @Post('verify-email')
+    @HttpCode(HttpStatus.OK)
+    @ResponseMessage('Email verified successfully')
+    @ApiOperation({
+        summary: 'Verify email address with ephemeral token',
+        description:
+            'Validates a raw 32-byte cryptographic token against Redis. Single-use and expires after 24 hours.',
+    })
+    @ApiBody({ type: VerifyEmailDto })
+    @ApiResponse({
+        status: HttpStatus.OK,
+        description: 'Email verified successfully.',
+    })
+    @ApiBadRequestResponse({
+        description: 'Token is missing, malformed, expired, or already consumed.',
+        type: ApiErrorResponseDto,
+    })
+    async verifyEmail(
+        @Body() dto: VerifyEmailDto,
+        @Ip() ipAddress: string,
+        @Headers('user-agent') userAgent: string | undefined,
+    ): Promise<{ verified : boolean }> {
+        const verified = await this.authService.verifyEmail(dto.token, {
+            ipAddress,
+            userAgent,
+        });
+
+        return {verified};
+    }
+
+    /**
+     * Resend account verification link.
+     *
+     * Anti-enumeration hardened: Always returns HTTP 200 regardless of whether
+     * the email exists, is already verified, or was newly queued.
+     *
+     * Heavily rate limited (3 attempts per 15 minutes per IP + email) to prevent
+     * spamming the background mail processor and user inboxes.
+     */
+    @Public()
+    @Post('resend-verification')
+    @HttpCode(HttpStatus.OK)
+    @UseGuards(RateLimitGuard)
+    @RateLimit({ limit: 3, ttlSeconds: 900, keyPrefix: 'rl:resend-verif', trackEmail: true })
+    @ResponseMessage('If the email is registered and unverified, a verification link has been sent.')
+    @ApiOperation({
+        summary: 'Resend verification link (Rate-limited, anti-enumeration safe)',
+        description:
+            'Re-issues a 24-hour verification token and queues an asynchronous email dispatch via BullMQ.',
+    })
+    @ApiBody({ type: ResendVerificationDto })
+    @ApiResponse({
+        status: HttpStatus.OK,
+        description: 'Generic success envelope to mitigate account enumeration attacks.',
+    })
+    @ApiTooManyRequestsResponse({
+        description: 'Rate limit exceeded (3 attempts per 15 minutes).',
+        type: ApiErrorResponseDto,
+    })
+    async resendVerification(
+        @Body() dto: ResendVerificationDto,
+        @Ip() ipAddress: string,
+        @Headers('user-agent') userAgent: string | undefined,
+    ): Promise<{message : string}> {
+        await this.authService.resendVerification(dto.email, {
+            ipAddress,
+            userAgent,
+        });
+
+        return {
+            message:
+                'If the email is registered and unverified, a verification link has been sent.',
+        };
     }
 }

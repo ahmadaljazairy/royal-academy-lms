@@ -47,6 +47,13 @@ services:
       - "127.0.0.1:5540:5540" # Bind strictly to 127.0.0.1 for security
     profiles: [ "tools" ]
 
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: royal_academy_mailpit
+    restart: unless-stopped
+    ports:
+      - '1025:1025' # SMTP port
+      - '8025:8025' # Web UI port
 volumes:
   pgdata:
   redisdata:

@@ -2,7 +2,7 @@ import {
     Injectable,
     ConflictException,
     UnauthorizedException,
-    Logger,
+    Logger, BadRequestException,
 } from '@nestjs/common';
 
 import type { AuthUserResponse, Role } from '@template/types';
@@ -16,6 +16,8 @@ import {
 import { PrismaService } from '../common/prisma/prisma.service.js';
 import { Argon2Service } from '../common/security/argon2.service.js';
 import {AuditLogService, SecurityAuditEvent} from "../common/audit/audit-log.service.js";
+import {AuthTokenManager, TokenType} from "./auth-token.manager.js";
+import {EmailQueueService} from "../common/email/email-queue.service.js";
 
 export interface LoginResult {
     session: SessionResult;
@@ -35,7 +37,9 @@ export class AuthService {
         private readonly argon2Service: Argon2Service,
         private readonly sessionService: SessionService,
         private readonly prisma: PrismaService,
-        private readonly audit: AuditLogService
+        private readonly audit: AuditLogService,
+        private readonly authTokenManager: AuthTokenManager,
+        private readonly emailQueueService: EmailQueueService,
     ) {}
 
 
@@ -43,6 +47,9 @@ export class AuthService {
         dto: RegisterDto,
         metadata?: RequestMetadata,
     ): Promise<AuthUserResponse> {
+        // ---------------------------------------------------------
+        // REGISTRATION FLOW
+        // ---------------------------------------------------------
         const normalizedEmail = dto.email.toLowerCase();
 
         const existingUser = await this.prisma.user.findUnique({
@@ -63,6 +70,7 @@ export class AuthService {
                 passwordHash,
                 displayName: dto.displayName,
                 termsAcceptedAt,
+                isEmailVerified: false,
             },
             select: {
                 id: true,
@@ -85,7 +93,28 @@ export class AuthService {
             },
         });
 
-        this.logger.log(`New user registered: ${user.email} (${user.id})`);
+        // ---------------------------------------------------------
+        // VERIFICATION FLOW
+        // ---------------------------------------------------------
+        // Generate 24h verification token in Redis
+        const { rawToken, tokenHash } = await this.authTokenManager.generateToken(
+            TokenType.EMAIL_VERIFICATION,
+            user.id,
+        );
+
+        // Audit request using the SHA-256 hash
+        await this.audit.record({
+            userId: user.id,
+            event: SecurityAuditEvent.AUTH_VERIFY_EMAIL_REQUESTED,
+            ipAddress: metadata?.ipAddress,
+            userAgent: metadata?.userAgent,
+            metadata: { tokenHash },
+        });
+
+        // Dispatch to BullMQ Redis queue
+        await this.emailQueueService.queueVerificationEmail(user.email, rawToken);
+
+        this.logger.log(`User registered & verification queued: ${user.email}`);
 
         return {
             id: user.id,
@@ -96,6 +125,73 @@ export class AuthService {
         };
     }
 
+
+    async verifyEmail(token: string, metadata?: RequestMetadata): Promise<boolean> {
+        if (!token) {
+            throw new BadRequestException('Verification token is required.');
+        }
+
+        // Atomically fetch and delete token from Redis
+        const userId = await this.authTokenManager.consumeToken(
+            TokenType.EMAIL_VERIFICATION,
+            token,
+        );
+
+        if (!userId) {
+            throw new BadRequestException('Invalid or expired verification token.');
+        }
+
+        // Mark verified in PostgreSQL
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { isEmailVerified: true },
+        });
+
+        // Record completion audit
+        await this.audit.record({
+            userId,
+            event: SecurityAuditEvent.AUTH_VERIFY_EMAIL_COMPLETED,
+            ipAddress: metadata?.ipAddress,
+            userAgent: metadata?.userAgent,
+        });
+
+        this.logger.log(`Email verified successfully for userId: ${userId}`);
+        return true;
+    }
+
+    async resendVerification(
+        email: string,
+        metadata?: RequestMetadata,
+    ): Promise<void> {
+        const normalizedEmail = email.toLowerCase();
+
+        const user = await this.prisma.user.findUnique({
+            where: { email: normalizedEmail },
+            select: { id: true, email: true, isEmailVerified: true },
+        });
+
+        // Anti-enumeration defense: return silently if user not found or already verified
+        if (!user || user.isEmailVerified) {
+            return;
+        }
+
+        const { rawToken, tokenHash } = await this.authTokenManager.generateToken(
+            TokenType.EMAIL_VERIFICATION,
+            user.id,
+        );
+
+        await this.audit.record({
+            userId: user.id,
+            event: SecurityAuditEvent.AUTH_VERIFY_EMAIL_REQUESTED,
+            ipAddress: metadata?.ipAddress,
+            userAgent: metadata?.userAgent,
+            metadata: { tokenHash },
+        });
+
+        await this.emailQueueService.queueVerificationEmail(user.email, rawToken);
+
+        this.logger.log(`Resent verification email for: ${user.email}`);
+    }
 
     async login(dto: LoginDto): Promise<LoginResult> {
         const user = await this.prisma.user.findUnique({
