@@ -3,7 +3,7 @@ import { useAuth } from '@/features/auth/context/AuthContext';
 import { BrandLogo, Button } from '@/shared/components/ui';
 
 export function LandingPage() {
-    const { isAuthenticated, user, isLoading } = useAuth();
+    const { isAuthenticated, isLoading } = useAuth();
 
     return (
         <div className="min-h-screen bg-white text-slate-900 selection:bg-primary selection:text-white">
