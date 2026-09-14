@@ -1,7 +1,6 @@
 // apps/web/src/App.tsx
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/features/auth/context/AuthContext';
-import { ProtectedRoute } from '@/shared/components/layout/ProtectedRoute';
 
 // Auth Pages
 import {
@@ -14,11 +13,8 @@ import {
 // Legal Pages
 import { PrivacyPolicyPage, TermsOfServicePage } from '@/features/legal/pages';
 import {LandingPage} from "@/features/landing/pages/LandingPage";
-
-// Dummy / Placeholder Portal Components (replace with real pages when built)
-function DashboardPage() {
-    return <div className="p-8 text-xl font-bold">Student Dashboard</div>;
-}
+import {DashboardPage} from "@/app/pages/DashboardPage";
+import {PublicOnlyRoute, ProtectedRoute} from "@/shared/components/layout";
 
 function AdminDashboardPage() {
     return <div className="p-8 text-xl font-bold">Admin Management Console</div>;
@@ -46,12 +42,16 @@ export function App() {
                     <Route path="/" element={<LandingPage />} />
                     <Route path="/privacy" element={<PrivacyPolicyPage />} />
                     <Route path="/terms" element={<TermsOfServicePage />} />
+                    <Route path="/verify-email" element={<VerifyEmailPage />} />
 
                     {/* ============================================================ */}
                     {/* 2. AUTHENTICATION & VERIFICATION FLOWS                       */}
                     {/* ============================================================ */}
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route path="/register" element={<RegisterPage />} />
+                    {/* Guest-Only Routes (Bounces to /dashboard if already logged in) */}
+                    <Route element={<PublicOnlyRoute redirectTo="/dashboard" />}>
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/register" element={<RegisterPage />} />
+                    </Route>
                     <Route path="/verify-email" element={<VerifyEmailPage />} />
                     <Route path="/verify-email-pending" element={<VerifyEmailPendingPage />} />
 
@@ -77,7 +77,7 @@ export function App() {
                             />
                         }
                     >
-                        <Route path="/admin" element={<AdminDashboardPage />} />
+                        <Route path="/admin" element={<DashboardPage />} />
                     </Route>
 
                     {/* ============================================================ */}

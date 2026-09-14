@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Input, Alert } from '@/shared/components/ui';
+import { useAuth } from '../context/AuthContext';
 import { AuthLayout } from '../components/AuthLayout';
 import { authApi, AuthApiError } from '../api/auth.api';
 
@@ -8,37 +9,121 @@ interface LocationState {
     email?: string;
 }
 
+function formatCooldown(seconds: number): string {
+    if (seconds < 60) return `${seconds}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+}
+
 export function VerifyEmailPendingPage() {
     const location = useLocation();
+    const navigate = useNavigate();
+    const { isAuthenticated, logout } = useAuth();
     const state = location.state as LocationState | null;
 
-    const [email, setEmail] = useState(state?.email || '');
+    const [email, setEmail] = useState<string>(() => {
+        return state?.email || sessionStorage.getItem('pending_verification_email') || '';
+    });
+
+    const [hasPresetEmail] = useState<boolean>(() => {
+        return Boolean(state?.email || sessionStorage.getItem('pending_verification_email'));
+    });
+
     const [isResending, setIsResending] = useState(false);
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-    const [cooldown, setCooldown] = useState(0);
 
-    // 60-second cooldown timer for rate-limit protection
+    useEffect(() => {
+        if (state?.email) {
+            sessionStorage.setItem('pending_verification_email', state.email);
+        }
+    }, [state?.email]);
+
+    const getStorageKey = useCallback((targetEmail: string) => {
+        const sanitized = targetEmail.toLowerCase().trim();
+        return `cooldown:resend-verif:${sanitized || 'default'}`;
+    }, []);
+
+    const getRemainingSeconds = useCallback((targetEmail: string): number => {
+        try {
+            const stored = localStorage.getItem(getStorageKey(targetEmail));
+            if (!stored) return 0;
+            const expiresAt = parseInt(stored, 10);
+            if (Number.isNaN(expiresAt)) return 0;
+            const remaining = Math.ceil((expiresAt - Date.now()) / 1000);
+            return remaining > 0 ? remaining : 0;
+        } catch {
+            return 0;
+        }
+    }, [getStorageKey]);
+
+    const [cooldown, setCooldown] = useState<number>(() => getRemainingSeconds(email));
+
+    const triggerCooldown = useCallback((seconds: number, targetEmail: string) => {
+        try {
+            const expiresAt = Date.now() + seconds * 1000;
+            localStorage.setItem(getStorageKey(targetEmail), expiresAt.toString());
+        } catch {
+            // Ignore storage restrictions
+        }
+        setCooldown(seconds);
+    }, [getStorageKey]);
+
     useEffect(() => {
         if (cooldown <= 0) return;
+
         const timer = setInterval(() => {
-            setCooldown((prev) => prev - 1);
+            const remaining = getRemainingSeconds(email);
+            setCooldown(remaining);
+
+            if (remaining <= 0) {
+                try {
+                    localStorage.removeItem(getStorageKey(email));
+                } catch {
+                    // Ignore
+                }
+                clearInterval(timer);
+            }
         }, 1000);
+
         return () => clearInterval(timer);
-    }, [cooldown]);
+    }, [cooldown, email, getRemainingSeconds, getStorageKey]);
+
+    useEffect(() => {
+        const remaining = getRemainingSeconds(email);
+        if (remaining > 0) {
+            setCooldown(remaining);
+        }
+    }, [email, getRemainingSeconds]);
+
+    // Safely leaves the verification screen by terminating any unverified session first
+    const handleExitFlow = async (targetRoute: string) => {
+        sessionStorage.removeItem('pending_verification_email');
+        if (isAuthenticated) {
+            try {
+                await logout();
+            } catch {
+                // Proceed even if network logout fails
+            }
+        }
+        navigate(targetRoute);
+    };
 
     const handleResend = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
-        if (!email) return;
+        const targetEmail = email.trim();
+        if (!targetEmail || cooldown > 0) return;
 
         setIsResending(true);
         setFeedback(null);
 
         try {
-            const response = await authApi.resendVerification(email);
+            const response = await authApi.resendVerification(targetEmail);
             setFeedback({ type: 'success', text: response.message });
-            setCooldown(60);
+            triggerCooldown(60, targetEmail);
         } catch (err) {
             if (err instanceof AuthApiError && err.statusCode === 429) {
+                triggerCooldown(900, targetEmail);
                 setFeedback({
                     type: 'error',
                     text: 'Rate limit reached (3 attempts per 15 minutes). Please check your inbox or wait before retrying.',
@@ -67,12 +152,12 @@ export function VerifyEmailPendingPage() {
             bottomPrompt={{
                 text: 'Wrong email address?',
                 actionText: 'Register Again',
-                to: '/register',
+                onClick: () => handleExitFlow('/register'),
             }}
         >
             <div className="space-y-4">
                 {/* Highlighted Email Badge */}
-                {email ? (
+                {hasPresetEmail && email ? (
                     <div className="rounded-2xl bg-[#F0F4FD] border border-[#E2EAF9] p-4 text-center space-y-1">
             <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider block">
               Verification sent to
@@ -82,7 +167,7 @@ export function VerifyEmailPendingPage() {
                 ) : (
                     <div className="rounded-2xl bg-[#F0F4FD] border border-[#E2EAF9] p-4 text-center">
                         <p className="text-xs text-slate-600">
-                            Please click the link sent to your registered email address to complete verification.
+                            Please check your inbox or enter your email below to receive a new activation link.
                         </p>
                     </div>
                 )}
@@ -105,7 +190,7 @@ export function VerifyEmailPendingPage() {
             <span className="w-4 h-4 rounded-full bg-red-50 text-primary font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
               3
             </span>
-                        <span>Be sure to check your spam/junk folder if the email doesn't appear in 2 minutes.</span>
+                        <span>Check your spam folder if the email doesn't appear in 2 minutes.</span>
                     </div>
                 </div>
 
@@ -115,9 +200,9 @@ export function VerifyEmailPendingPage() {
                     </Alert>
                 )}
 
-                {/* Inline Resend Form */}
+                {/* Resend Form */}
                 <form onSubmit={handleResend} className="space-y-3 pt-1">
-                    {!email && (
+                    {!hasPresetEmail && (
                         <Input
                             label="Account Email"
                             type="email"
@@ -125,6 +210,7 @@ export function VerifyEmailPendingPage() {
                             required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
+                            disabled={cooldown > 0}
                         />
                     )}
 
@@ -132,22 +218,24 @@ export function VerifyEmailPendingPage() {
                         type="submit"
                         variant="outline"
                         isLoading={isResending}
-                        disabled={cooldown > 0}
+                        disabled={cooldown > 0 || !email.trim()}
                         className="w-full rounded-full py-3 text-xs"
                     >
                         {cooldown > 0
-                            ? `Resend link in ${cooldown}s`
+                            ? `Resend link in ${formatCooldown(cooldown)}`
                             : "Didn't receive email? Resend link"}
                     </Button>
                 </form>
 
+                {/* Escape action: logs out before navigating to /login */}
                 <div className="text-center pt-2">
-                    <Link
-                        to="/login"
-                        className="text-xs font-semibold text-primary hover:underline"
+                    <button
+                        type="button"
+                        onClick={() => handleExitFlow('/login')}
+                        className="text-xs font-semibold text-primary hover:underline cursor-pointer"
                     >
                         ← Return to Sign In
-                    </Link>
+                    </button>
                 </div>
             </div>
         </AuthLayout>

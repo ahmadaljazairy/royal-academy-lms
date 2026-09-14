@@ -22,7 +22,8 @@ interface AuthLayoutProps {
     bottomPrompt?: {
         text: string;
         actionText: string;
-        to: string;
+        to?: string;
+        onClick?: () => void | Promise<void>;
     };
     /** Custom bottom content override if not using the standard prompt */
     bottomContent?: React.ReactNode;
@@ -93,14 +94,24 @@ export function AuthLayout({
 
                     {/* Standardized Bottom Switch Box */}
                     {bottomPrompt && (
-                        <div className="rounded-2xl bg-[#F0F4F8] p-4 text-center text-xs text-slate-600">
+                        <div className="rounded-2xl bg-[#F0F4FD] p-4 text-center text-xs text-slate-600">
                             {bottomPrompt.text}{' '}
-                            <Link
-                                to={bottomPrompt.to}
-                                className="font-semibold text-primary hover:underline ml-1"
-                            >
-                                {bottomPrompt.actionText}
-                            </Link>
+                            {bottomPrompt.onClick ? (
+                                <button
+                                    type="button"
+                                    onClick={bottomPrompt.onClick}
+                                    className="font-semibold text-primary hover:underline ml-1 cursor-pointer"
+                                >
+                                    {bottomPrompt.actionText}
+                                </button>
+                            ) : (
+                                <Link
+                                    to={bottomPrompt.to || '#'}
+                                    className="font-semibold text-primary hover:underline ml-1"
+                                >
+                                    {bottomPrompt.actionText}
+                                </Link>
+                            )}
                         </div>
                     )}
 
