@@ -4,8 +4,9 @@ import { AuthProvider } from '@/features/auth/context/AuthContext';
 
 // Auth Pages
 import {
+    ForgotPasswordPage,
     LoginPage,
-    RegisterPage,
+    RegisterPage, ResetPasswordPage,
     VerifyEmailPage,
     VerifyEmailPendingPage,
 } from '@/features/auth/pages';
@@ -51,6 +52,8 @@ export function App() {
                     <Route element={<PublicOnlyRoute redirectTo="/dashboard" />}>
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/register" element={<RegisterPage />} />
+                        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                        <Route path="/reset-password" element={<ResetPasswordPage />} />
                     </Route>
                     <Route path="/verify-email" element={<VerifyEmailPage />} />
                     <Route path="/verify-email-pending" element={<VerifyEmailPendingPage />} />

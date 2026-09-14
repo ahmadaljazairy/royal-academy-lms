@@ -101,4 +101,16 @@ export const authApi = {
             method: 'POST',
             body: JSON.stringify({ email }),
         }),
+
+    forgotPassword: (email: string) =>
+        authFetch<{ message: string }>('/api/auth/forgot-password', {
+            method: 'POST',
+            body: JSON.stringify({ email }),
+        }),
+
+    resetPassword: (payload: { token: string; newPassword: string }) =>
+        authFetch<{ message: string }>('/api/auth/reset-password', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        }),
 };
