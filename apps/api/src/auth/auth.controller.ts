@@ -57,7 +57,7 @@ import {
     LoginDto,
     AuthResponseEnvelopeDto,
     SessionResponseEnvelopeDto,
-    LogoutResponseEnvelopeDto, VerifyEmailDto, ResendVerificationDto,
+    LogoutResponseEnvelopeDto, VerifyEmailDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto,
 } from './dto/index.js';
 
 /**
@@ -377,6 +377,83 @@ export class AuthController {
         return {
             message:
                 'If the email is registered and unverified, a verification link has been sent.',
+        };
+    }
+
+    /**
+     * Request password reset link.
+     *
+     * Protected with IP-level rate limiting (5 attempts / 15 mins) to prevent
+     * queue starvation and email abuse.
+     */
+    @Public()
+    @Post('forgot-password')
+    @HttpCode(HttpStatus.OK)
+    @UseGuards(RateLimitGuard)
+    @RateLimit({ limit: 5, ttlSeconds: 900, keyPrefix: 'rl:forgot-pw', trackEmail: false })
+    @ResponseMessage('If an account exists with this email, a reset link has been sent.')
+    @ApiOperation({
+        summary: 'Request password reset link',
+        description: 'Enqueues a password reset email if the account exists. Anti-enumeration protected.',
+    })
+    @ApiBody({ type: ForgotPasswordDto })
+    @ApiResponse({
+        status: HttpStatus.OK,
+        description: 'Generic success envelope mitigating account enumeration.',
+    })
+    @ApiTooManyRequestsResponse({
+        description: 'Rate limit exceeded (5 requests per 15 minutes per IP).',
+        type: ApiErrorResponseDto,
+    })
+    async forgotPassword(
+        @Body() dto: ForgotPasswordDto,
+        @Ip() ipAddress: string,
+        @Headers('user-agent') userAgent: string | undefined,
+    ): Promise<{message : string}> {
+        await this.authService.forgotPassword(dto.email, {
+            ipAddress,
+            userAgent,
+        });
+
+        return {
+            message: 'If an account exists with this email, a reset link has been sent.',
+        };
+    }
+
+    /**
+     * Reset account password using ephemeral token.
+     *
+     * Atomically consumes the token, updates the password hash, and logs out all active sessions.
+     */
+    @Public()
+    @Post('reset-password')
+    @HttpCode(HttpStatus.OK)
+    @ResponseMessage('Password reset successful. Please sign in with your new password.')
+    @ApiOperation({
+        summary: 'Reset password using token',
+        description: 'Consumes the single-use reset token and revokes all active sessions for security.',
+    })
+    @ApiBody({ type: ResetPasswordDto })
+    @ApiResponse({
+        status: HttpStatus.OK,
+        description: 'Password reset successfully.',
+    })
+    @ApiBadRequestResponse({
+        description: 'Token is invalid, expired, or password criteria not met.',
+        type: ApiErrorResponseDto,
+    })
+    async resetPassword(
+        @Body() dto: ResetPasswordDto,
+        @Ip() ipAddress: string,
+        @Headers('user-agent') userAgent: string | undefined,
+    ): Promise<{ message : string }> {
+        await this.authService.resetPassword(dto, {
+            ipAddress,
+            userAgent,
+        });
+
+        return {
+            message: 'Password reset successful. Please sign in with your new password.',
         };
     }
 }

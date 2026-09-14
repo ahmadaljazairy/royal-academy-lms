@@ -7,7 +7,7 @@ import {
 
 import type { AuthUserResponse, Role } from '@template/types';
 
-import type { RegisterDto, LoginDto } from './dto/index.js';
+import {type RegisterDto, type LoginDto, ResetPasswordDto} from './dto/index.js';
 import {
     type SessionResult,
     SessionService,
@@ -255,5 +255,97 @@ export class AuthService {
             return false;
         }
         return this.sessionService.destroySession(sessionId);
+    }
+
+    /**
+     * Request a password reset link.
+     *
+     * Anti-enumeration hardened: Returns generic success envelope whether
+     * the email exists in PostgreSQL or not.
+     */
+    async forgotPassword(
+        email: string,
+        metadata?: RequestMetadata,
+    ): Promise<void> {
+        const normalizedEmail = email.trim().toLowerCase();
+
+        const user = await this.prisma.user.findUnique({
+            where: { email: normalizedEmail },
+            select: { id: true, email: true },
+        });
+
+        // Anti-enumeration: Return silently without queuing email or revealing presence
+        if (!user) {
+            this.logger.warn(`Password reset requested for non-existent email: ${normalizedEmail}`);
+            return;
+        }
+
+        // Generate 1-hour ephemeral token in Redis
+        const { rawToken, tokenHash } = await this.authTokenManager.generateToken(
+            TokenType.PASSWORD_RESET,
+            user.id,
+        );
+
+        // Record audit event using SHA-256 hash (never raw token)
+        await this.audit.record({
+            userId: user.id,
+            event: SecurityAuditEvent.AUTH_PASSWORD_RESET_REQUESTED,
+            ipAddress: metadata?.ipAddress,
+            userAgent: metadata?.userAgent,
+            metadata: { tokenHash },
+        });
+
+        // Enqueue job
+        await this.emailQueueService.queuePasswordResetEmail(user.email, rawToken);
+
+        this.logger.log(`Password reset email queued for userId: ${user.id}`);
+    }
+
+    /**
+     * Execute password reset using a single-use ephemeral token.
+     *
+     * Consumes token from Redis via GETDEL, hashes the new password with Argon2id,
+     * updates PostgreSQL, and terminates ALL active sessions across all devices.
+     */
+    async resetPassword(
+        dto: ResetPasswordDto,
+        metadata?: RequestMetadata,
+    ): Promise<boolean> {
+        if (!dto.token) {
+            throw new BadRequestException('Reset token is required.');
+        }
+
+        // 1. Atomically consume token from Redis (GETDEL)
+        const userId = await this.authTokenManager.consumeToken(
+            TokenType.PASSWORD_RESET,
+            dto.token,
+        );
+
+        if (!userId) {
+            throw new BadRequestException('Invalid or expired password reset link.');
+        }
+
+        // 2. Hash new password using Argon2id
+        const passwordHash = await this.argon2Service.hashPassword(dto.newPassword);
+
+        // 3. Update database record
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { passwordHash },
+        });
+
+        // 4. Invalidate all active Redis sessions across all browsers/devices
+        await this.sessionService.destroyAllUserSessions(userId, metadata);
+
+        // 5. Immutable audit record
+        await this.audit.record({
+            userId,
+            event: SecurityAuditEvent.AUTH_PASSWORD_RESET_COMPLETED,
+            ipAddress: metadata?.ipAddress,
+            userAgent: metadata?.userAgent,
+        });
+
+        this.logger.log(`Password reset completed successfully for userId: ${userId}`);
+        return true;
     }
 }
