@@ -34,7 +34,7 @@ export function RegisterPage() {
                 password,
                 termsAccepted: agreeTerms,
             });
-            navigate('/dashboard');
+            navigate('/verify-email-pending', { state: { email } });
         } catch (err) {
             if (err instanceof AuthApiError) {
                 setErrorMessages(err.messages);

@@ -89,4 +89,16 @@ export const authApi = {
         authFetch<LogoutResult>('/api/auth/logout', {
             method: 'POST',
         }),
+
+    verifyEmail: (token: string) =>
+        authFetch<{ verified: boolean }>('/api/auth/verify-email', {
+            method: 'POST',
+            body: JSON.stringify({ token }),
+        }),
+
+    resendVerification: (email: string) =>
+        authFetch<{ message: string }>('/api/auth/resend-verification', {
+            method: 'POST',
+            body: JSON.stringify({ email }),
+        }),
 };

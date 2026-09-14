@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import type { UserSession, LoginInput, RegisterInput } from '@template/types';
+import type {UserSession, LoginInput, RegisterInput, UserProfile} from '@template/types';
 import { authApi, AuthApiError } from '../api/auth.api';
 
 interface AuthContextValue {
     user: UserSession | null;
     isLoading: boolean;
     isAuthenticated: boolean;
-    login: (input: LoginInput) => Promise<void>;
+    login: (input: LoginInput) => Promise<UserProfile>;
     register: (input: RegisterInput) => Promise<void>;
     logout: () => Promise<void>;
     refreshSession: () => Promise<void>;
@@ -33,8 +33,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refreshSession();
     }, [refreshSession]);
 
-    const login = async (input: LoginInput) => {
-        await authApi.login(input);
+    const login = async (input: LoginInput): Promise<UserProfile> => {
+        const profile = await authApi.login(input);
 
         try {
             const session = await authApi.getProfile();
@@ -43,6 +43,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(null);
             throw new Error('Session could not be established. Please check cookie settings.');
         }
+
+        return profile;
     };
 
     const register = async (input: RegisterInput) => {

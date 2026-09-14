@@ -16,13 +16,19 @@ export function LoginPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMessages, setErrorMessages] = useState<string[] | null>(null);
 
-    const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
+    const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         setErrorMessages(null);
         setIsSubmitting(true);
 
         try {
-            await login({ email, password, rememberMe });
+            const userProfile = await login({ email, password, rememberMe });
+
+            if (!userProfile.isEmailVerified) {
+                navigate('/verify-email-pending', { state: { email } });
+                return;
+            }
+
             navigate('/dashboard');
         } catch (err) {
             if (err instanceof AuthApiError) {
