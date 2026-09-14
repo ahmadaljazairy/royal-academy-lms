@@ -147,6 +147,10 @@ export class AuthService {
             data: { isEmailVerified: true },
         });
 
+        await this.sessionService.updateUserSessions(userId, {
+            isEmailVerified: true,
+        });
+
         // Record completion audit
         await this.audit.record({
             userId,
@@ -228,6 +232,7 @@ export class AuthService {
                 userId: user.id,
                 email: user.email,
                 role: user.role as Role,
+                isEmailVerified : user.isEmailVerified
             },
             ttlHours,
         );

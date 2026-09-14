@@ -11,6 +11,7 @@ export interface CreateSessionInput {
     userId: string;
     email: string;
     role: Role;
+    isEmailVerified: boolean;
 }
 
 export interface SessionResult {
@@ -57,6 +58,7 @@ export class SessionService {
             email: input.email,
             role: input.role,
             createdAt: Date.now(),
+            isEmailVerified : input.isEmailVerified
         };
 
         const ttlSeconds = Math.floor(ttlHours * 3600);
@@ -174,5 +176,60 @@ export class SessionService {
         );
 
         return sessionIds.length;
+    }
+
+    /**
+     * Patches active session payloads in Redis for a specific user
+     * while preserving each session's remaining TTL.
+     */
+    async updateUserSessions(
+        userId: string,
+        partialUpdate: Partial<UserSession>,
+    ): Promise<void> {
+        if (!userId) {
+            return;
+        }
+
+        const redis = this.redisService.getClient();
+        const userSetKey = `${this.userSessionsPrefix}${userId}`;
+        const sessionIds = await redis.smembers(userSetKey);
+
+        if (!sessionIds.length) {
+            return;
+        }
+
+        const pipeline = redis.pipeline();
+
+        for (const sessionId of sessionIds) {
+            const sessionKey = `${this.sessionPrefix}${sessionId}`;
+            const [ttl, rawData] = await Promise.all([
+                redis.ttl(sessionKey),
+                redis.get(sessionKey),
+            ]);
+
+            // Stale index cleanup: session expired or was deleted
+            if (ttl <= 0 || !rawData) {
+                pipeline.srem(userSetKey, sessionId);
+                continue;
+            }
+
+            try {
+                const session = JSON.parse(rawData) as UserSession;
+                const updatedSession: UserSession = {
+                    ...session,
+                    ...partialUpdate,
+                };
+
+                // Overwrite with updated attributes while maintaining the exact TTL remaining
+                pipeline.set(sessionKey, JSON.stringify(updatedSession), 'EX', ttl);
+            } catch (error) {
+                this.logger.error(
+                    `Failed to patch session payload for key: ${sessionKey}`,
+                    error,
+                );
+            }
+        }
+
+        await pipeline.exec();
     }
 }

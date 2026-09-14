@@ -15,6 +15,7 @@ export interface UserSession {
     email: string;
     role: Role;
     createdAt: number;
+    isEmailVerified: boolean;
 }
 
 export interface RegisterInput {

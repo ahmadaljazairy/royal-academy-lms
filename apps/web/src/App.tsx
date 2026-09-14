@@ -1,5 +1,5 @@
 // apps/web/src/App.tsx
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/features/auth/context/AuthContext';
 import { ProtectedRoute } from '@/shared/components/layout/ProtectedRoute';
 

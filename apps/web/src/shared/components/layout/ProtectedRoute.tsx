@@ -56,7 +56,7 @@ export function ProtectedRoute({
 
     // 3. Email Verification Barrier
     // Note: Cast accounts for user models pending explicit isEmailVerified on UserSession
-    const isVerified = (user as { isEmailVerified?: boolean }).isEmailVerified ?? false;
+    const isVerified = user.isEmailVerified ?? false;
 
     if (requireVerifiedEmail && !isVerified) {
         return (

@@ -34,8 +34,12 @@ export class UserSessionDto implements UserSession {
     @ApiProperty({ example: 'STUDENT', enum: ['STUDENT', 'INSTRUCTOR', 'ADMIN'] })
     role!: Role;
 
+    @ApiProperty({ example: true, description: 'Whether the user has verified their email address' })
+    isEmailVerified!: boolean;
+
     @ApiProperty({ example: 1788703200000, description: 'Unix timestamp in milliseconds' })
     createdAt!: number;
+
 }
 
 export class LogoutDataDto implements LogoutResult {
