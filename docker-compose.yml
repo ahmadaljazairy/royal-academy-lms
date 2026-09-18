@@ -1,25 +1,23 @@
+name: royal-academy-lms
+
 services:
+  # ============================================================================
+  # 1. PRIMARY DATASTORES
+  # ============================================================================
   postgres:
     image: postgres:16-alpine
+    container_name: royal_academy_postgres
     restart: unless-stopped
-
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-royal_academy_dev}
     ports:
       - "127.0.0.1:5433:5432"
-
     volumes:
       - pgdata:/var/lib/postgresql/data
-
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
-        ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-royal_academy_dev}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -34,26 +32,50 @@ services:
     volumes:
       - redisdata:/data
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
 
-  #docker compose --profile tools up -d redisinsight
-  redisinsight:
-    image: redis/redisinsight:latest
-    container_name: redisinsight
+  # ============================================================================
+  # 2. S3-COMPATIBLE OBJECT STORAGE (MINIO)
+  # ============================================================================
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: royal_academy_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadminpassword}
     ports:
-      - "127.0.0.1:5540:5540" # Bind strictly to 127.0.0.1 for security
-    profiles: [ "tools" ]
+      - "127.0.0.1:9000:9000" # S3 API endpoint
+      - "127.0.0.1:9001:9001" # Web Console UI
+    volumes:
+      - minio_data:/data
 
+  # ============================================================================
+  # 3. DEVELOPER TOOLING & LOCAL SERVICES
+  # ============================================================================
   mailpit:
     image: axllent/mailpit:latest
     container_name: royal_academy_mailpit
     restart: unless-stopped
     ports:
-      - '1025:1025' # SMTP port
-      - '8025:8025' # Web UI port
+      - "127.0.0.1:1025:1025" # SMTP Port
+      - "127.0.0.1:8025:8025" # Web UI Dashboard
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: royal_academy_redisinsight
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5540:5540"
+
+# ==============================================================================
+# PERSISTENT STORAGE VOLUMES
+# ==============================================================================
 volumes:
   pgdata:
   redisdata:
+  minio_data:
