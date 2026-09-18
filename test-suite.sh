@@ -2,11 +2,14 @@
 set -eo pipefail
 
 BASE_URL="http://localhost:3000/api"
+MAILPIT_API="http://localhost:8025/api/v1"
 COOKIE_JAR=$(mktemp)
 REMEMBER_COOKIE_JAR=$(mktemp)
+RESET_COOKIE_JAR=$(mktemp)
 TIMESTAMP=$(date +%s)
 TEST_EMAIL="test.user.${TIMESTAMP}@domain.com"
 TEST_PASSWORD="SecurePassword2026!"
+TEST_NEW_PASSWORD="BrandNewPassword2026!"
 TEST_NAME="Integration Tester"
 
 # Colors for terminal output
@@ -20,13 +23,12 @@ pass() { echo -e "  [${GREEN}PASS${NC}] $1"; }
 fail() { echo -e "  [${RED}FAIL${NC}] $1"; exit 1; }
 info() { echo -e "\n${BLUE}=== $1 ===${NC}"; }
 
-trap "rm -f ${COOKIE_JAR} ${REMEMBER_COOKIE_JAR}" EXIT
+trap "rm -f ${COOKIE_JAR} ${REMEMBER_COOKIE_JAR} ${RESET_COOKIE_JAR}" EXIT
 
 # ==============================================================================
 # ENVELOPE CONTRACT ASSERTION HELPERS
 # ==============================================================================
 
-# Asserts standard flat success contract: ApiSuccessResponse<T>
 assert_flat_success() {
   local body="$1"
   local expected_status="$2"
@@ -39,7 +41,6 @@ assert_flat_success() {
   return 0
 }
 
-# Asserts standard flat error contract: ApiErrorResponse
 assert_flat_error() {
   local body="$1"
   local expected_status="$2"
@@ -133,23 +134,22 @@ if [ "$HTTP_CODE" -eq 401 ] && assert_flat_error "$BODY" 401; then
 else
   fail "Secure-by-default failed to protect /api/auth/me. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
+
 # ==============================================================================
 # 4. USER REGISTRATION (HAPPY PATH & DUPLICATES)
 # ==============================================================================
 info "4. User Registration Flow & Conflict Handling"
 
-# Happy Path (With required termsAccepted: true)
 REG_RAW=$(curl -s -i -X POST "${BASE_URL}/auth/register" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\",\"displayName\":\"${TEST_NAME}\",\"termsAccepted\":true}")
 
 HTTP_CODE=$(echo "$REG_RAW" | grep -i "^HTTP/" | tail -n1 | awk '{print $2}')
 
-# If hit by rate limiter from previous test steps, wait for window to clear
 if [ "$HTTP_CODE" -eq 429 ]; then
   RETRY_AFTER=$(echo "$REG_RAW" | grep -i "^retry-after:" | awk '{print $2}' | tr -d '\r')
   WAIT_TIME="${RETRY_AFTER:-60}"
-  echo -e "  ${YELLOW}[WAIT]${NC} Rate limit reached on register. Sleeping ${WAIT_TIME}s based on Retry-After header..."
+  echo -e "  ${YELLOW}[WAIT]${NC} Rate limit reached on register. Sleeping ${WAIT_TIME}s..."
   sleep "$WAIT_TIME"
 
   REG_RAW=$(curl -s -i -X POST "${BASE_URL}/auth/register" \
@@ -176,19 +176,6 @@ DUP_RAW=$(curl -s -i -X POST "${BASE_URL}/auth/register" \
   -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\",\"displayName\":\"${TEST_NAME}\",\"termsAccepted\":true}")
 
 HTTP_CODE=$(echo "$DUP_RAW" | grep -i "^HTTP/" | tail -n1 | awk '{print $2}')
-
-if [ "$HTTP_CODE" -eq 429 ]; then
-  RETRY_AFTER=$(echo "$DUP_RAW" | grep -i "^retry-after:" | awk '{print $2}' | tr -d '\r')
-  WAIT_TIME="${RETRY_AFTER:-60}"
-  echo -e "  ${YELLOW}[WAIT]${NC} Rate limit reached as expected. Sleeping ${WAIT_TIME}s based on Retry-After header..."
-  sleep "$WAIT_TIME"
-
-  DUP_RAW=$(curl -s -i -X POST "${BASE_URL}/auth/register" \
-    -H "Content-Type: application/json" \
-    -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\",\"displayName\":\"${TEST_NAME}\",\"termsAccepted\":true}")
-  HTTP_CODE=$(echo "$DUP_RAW" | grep -i "^HTTP/" | tail -n1 | awk '{print $2}')
-fi
-
 BODY=$(echo "$DUP_RAW" | sed '1,/^\r\{0,1\}$/d')
 
 if [ "$HTTP_CODE" -eq 409 ] && assert_flat_error "$BODY" 409; then
@@ -259,18 +246,272 @@ BODY=$(echo "$ME_RESP" | sed '$d')
 
 if [ "$HTTP_CODE" -eq 200 ] && \
    assert_flat_success "$BODY" 200 && \
-   echo "$BODY" | grep -q "${TEST_EMAIL}"; then
-  pass "Active Redis session resolved user identity inside flat HTTP 200 envelope"
+   echo "$BODY" | grep -q "${TEST_EMAIL}" && \
+   echo "$BODY" | grep -q '"isEmailVerified":false'; then
+  pass "Active Redis session resolved user identity (unverified email status accurate)"
 else
   fail "Failed to resolve authenticated session. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
 
 # ==============================================================================
-# 7. ROLE-BASED ACCESS CONTROL (RBAC)
+# 7. BULLMQ EMAIL VERIFICATION FLOW VIA MAILPIT
 # ==============================================================================
-info "7. RBAC & RolesGuard Evaluation"
+info "7. BullMQ Email Verification Flow via Mailpit"
 
-ADMIN_RESP=$(curl -s -w "\n%{http_code}" -b "${COOKIE_JAR}" -X GET "${BASE_URL}/auth/admin-check")
+MAILPIT_CHECK=$(curl -s -o /dev/null -w "%{http_code}" "${MAILPIT_API}/messages" || true)
+if [ "$MAILPIT_CHECK" -ne 200 ]; then
+  fail "Mailpit API unreachable on port 8025. Ensure Mailpit container is running."
+fi
+
+echo -e "  ${BLUE}[INFO]${NC} Waiting 2s for background BullMQ worker to deliver verification email..."
+sleep 2
+
+# Fetch exact message ID using Mailpit's query search parameter
+VERIF_SEARCH_JSON=$(curl -s "${MAILPIT_API}/messages?query=${TEST_EMAIL}")
+VERIF_MSG_ID=$(echo "$VERIF_SEARCH_JSON" | grep -o '"ID":"[^"]*"' | head -n1 | cut -d'"' -f4)
+
+if [ -z "$VERIF_MSG_ID" ]; then
+  fail "Verification email was not received in Mailpit for ${TEST_EMAIL}"
+else
+  pass "Verification email caught by Mailpit (Message ID: ${VERIF_MSG_ID})"
+fi
+
+# Fetch full message and extract verification token
+VERIF_BODY=$(curl -s "${MAILPIT_API}/message/${VERIF_MSG_ID}")
+VERIFY_TOKEN=$(echo "$VERIF_BODY" | grep -o 'token=[a-zA-Z0-9_-]*' | head -n1 | cut -d'=' -f2)
+
+if [ -z "$VERIFY_TOKEN" ]; then
+  fail "Failed to extract verification token from email body"
+else
+  pass "Extracted verification token from Mailpit email payload"
+fi
+
+# Reject invalid/tampered token
+IV_RESP=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/verify-email" \
+  -H "Content-Type: application/json" \
+  -d '{"token":"invalid-tampered-token-12345"}')
+
+IV_CODE=$(echo "$IV_RESP" | tail -n1)
+IV_BODY=$(echo "$IV_RESP" | sed '$d')
+
+if [ "$IV_CODE" -eq 400 ] && assert_flat_error "$IV_BODY" 400; then
+  pass "Invalid verification token rejected with flat HTTP 400 envelope"
+else
+  fail "Invalid token was not rejected properly. Received: HTTP ${IV_CODE} - ${IV_BODY}"
+fi
+
+# Consume valid token
+VV_RESP=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/verify-email" \
+  -H "Content-Type: application/json" \
+  -d "{\"token\":\"${VERIFY_TOKEN}\"}")
+
+VV_CODE=$(echo "$VV_RESP" | tail -n1)
+VV_BODY=$(echo "$VV_RESP" | sed '$d')
+
+if [ "$VV_CODE" -eq 200 ] && assert_flat_success "$VV_BODY" 200 && echo "$VV_BODY" | grep -q '"verified":true'; then
+  pass "Valid verification token consumed (HTTP 200, user email marked verified)"
+else
+  fail "Valid verification token failed. Received: HTTP ${VV_CODE} - ${VV_BODY}"
+fi
+
+# Replay attack prevention (Single-use check)
+REPLAY_RESP=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/verify-email" \
+  -H "Content-Type: application/json" \
+  -d "{\"token\":\"${VERIFY_TOKEN}\"}")
+
+RV_CODE=$(echo "$REPLAY_RESP" | tail -n1)
+RV_BODY=$(echo "$REPLAY_RESP" | sed '$d')
+
+if [ "$RV_CODE" -eq 400 ] && assert_flat_error "$RV_BODY" 400; then
+  pass "Replay attack prevented: Single-use token purged via GETDEL (HTTP 400)"
+else
+  fail "Replay attack succeeded or returned unexpected code. Received: HTTP ${RV_CODE} - ${RV_BODY}"
+fi
+
+# Verify active Redis session synchronized isEmailVerified: true
+ME_VERIF_RESP=$(curl -s -w "\n%{http_code}" -b "${COOKIE_JAR}" -X GET "${BASE_URL}/auth/me")
+ME_V_CODE=$(echo "$ME_VERIF_RESP" | tail -n1)
+ME_V_BODY=$(echo "$ME_VERIF_RESP" | sed '$d')
+
+if [ "$ME_V_CODE" -eq 200 ] && echo "$ME_V_BODY" | grep -q '"isEmailVerified":true'; then
+  pass "Active Redis session payload synchronized: isEmailVerified is now true without re-login"
+else
+  fail "Session synchronization failed. Received: HTTP ${ME_V_CODE} - ${ME_V_BODY}"
+fi
+
+# ==============================================================================
+# 8. RESEND VERIFICATION & ANTI-ENUMERATION
+# ==============================================================================
+info "8. Resend Verification & Anti-Enumeration Defense"
+
+# Non-existent email
+NON_EXISTENT_RESEND=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/resend-verification" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"does-not-exist@domain.com"}')
+
+NE_CODE=$(echo "$NON_EXISTENT_RESEND" | tail -n1)
+NE_BODY=$(echo "$NON_EXISTENT_RESEND" | sed '$d')
+
+if [ "$NE_CODE" -eq 200 ] && assert_flat_success "$NE_BODY" 200; then
+  pass "Anti-enumeration upheld: Non-existent email returns generic HTTP 200 success"
+else
+  fail "Resend verification leaked account non-existence. Received: HTTP ${NE_CODE} - ${NE_BODY}"
+fi
+
+# Already verified user
+ALREADY_VERIFIED_RESEND=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/resend-verification" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"${TEST_EMAIL}\"}")
+
+AV_CODE=$(echo "$ALREADY_VERIFIED_RESEND" | tail -n1)
+AV_BODY=$(echo "$ALREADY_VERIFIED_RESEND" | sed '$d')
+
+if [ "$AV_CODE" -eq 200 ] && assert_flat_success "$AV_BODY" 200; then
+  pass "Anti-enumeration upheld: Already verified user returns generic HTTP 200 success"
+else
+  fail "Resend verification failed for verified user. Received: HTTP ${AV_CODE} - ${AV_BODY}"
+fi
+
+# ==============================================================================
+# 9. FORGOT & RESET PASSWORD LIFECYCLE
+# ==============================================================================
+info "9. Forgot & Reset Password Lifecycle with Session Invalidation"
+
+# Non-existent user forgot-password request
+FP_NON_EXISTENT=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/forgot-password" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"ghost-user@domain.com"}')
+
+FP_NE_CODE=$(echo "$FP_NON_EXISTENT" | tail -n1)
+FP_NE_BODY=$(echo "$FP_NON_EXISTENT" | sed '$d')
+
+if [ "$FP_NE_CODE" -eq 200 ] && assert_flat_success "$FP_NE_BODY" 200; then
+  pass "Forgot password anti-enumeration: Non-existent user returns generic HTTP 200"
+else
+  fail "Forgot password leaked account existence. Received: HTTP ${FP_NE_CODE} - ${FP_NE_BODY}"
+fi
+
+# Valid forgot-password request
+FP_VALID=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/forgot-password" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"${TEST_EMAIL}\"}")
+
+FP_V_CODE=$(echo "$FP_VALID" | tail -n1)
+FP_V_BODY=$(echo "$FP_VALID" | sed '$d')
+
+if [ "$FP_V_CODE" -eq 200 ] && assert_flat_success "$FP_V_BODY" 200; then
+  pass "Forgot password request accepted and queued (HTTP 200)"
+else
+  fail "Forgot password failed. Received: HTTP ${FP_V_CODE} - ${FP_V_BODY}"
+fi
+
+echo -e "  ${BLUE}[INFO]${NC} Waiting 2s for background BullMQ worker to deliver reset password email..."
+sleep 2
+
+# Fetch password reset email using query search parameter
+RESET_SEARCH_JSON=$(curl -s "${MAILPIT_API}/messages?query=${TEST_EMAIL}")
+RESET_MSG_ID=$(echo "$RESET_SEARCH_JSON" | grep -o '"ID":"[^"]*"' | head -n1 | cut -d'"' -f4)
+
+if [ -z "$RESET_MSG_ID" ]; then
+  fail "Failed to find password reset email in Mailpit for ${TEST_EMAIL}"
+fi
+
+RESET_EMAIL_PAYLOAD=$(curl -s "${MAILPIT_API}/message/${RESET_MSG_ID}")
+RESET_TOKEN=$(echo "$RESET_EMAIL_PAYLOAD" | grep -o 'token=[a-zA-Z0-9_-]*' | head -n1 | cut -d'=' -f2)
+
+if [ -z "$RESET_TOKEN" ]; then
+  fail "Failed to extract reset password token from Mailpit message ${RESET_MSG_ID}"
+else
+  pass "Extracted reset password token from Mailpit email payload"
+fi
+
+# Weak new password rejection
+WEAK_RESET=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/reset-password" \
+  -H "Content-Type: application/json" \
+  -d "{\"token\":\"${RESET_TOKEN}\",\"newPassword\":\"weak\"}")
+
+WR_CODE=$(echo "$WEAK_RESET" | tail -n1)
+WR_BODY=$(echo "$WEAK_RESET" | sed '$d')
+
+if [ "$WR_CODE" -eq 400 ] && assert_flat_error "$WR_BODY" 400; then
+  pass "Password complexity validation enforced on reset-password (HTTP 400)"
+else
+  fail "Weak password was not rejected on reset. Received: HTTP ${WR_CODE} - ${WR_BODY}"
+fi
+
+# Execute valid password reset
+EXEC_RESET=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/reset-password" \
+  -H "Content-Type: application/json" \
+  -d "{\"token\":\"${RESET_TOKEN}\",\"newPassword\":\"${TEST_NEW_PASSWORD}\"}")
+
+ER_CODE=$(echo "$EXEC_RESET" | tail -n1)
+ER_BODY=$(echo "$EXEC_RESET" | sed '$d')
+
+if [ "$ER_CODE" -eq 200 ] && assert_flat_success "$ER_BODY" 200; then
+  pass "Password reset executed successfully with Argon2id hash update (HTTP 200)"
+else
+  fail "Password reset failed. Received: HTTP ${ER_CODE} - ${ER_BODY}"
+fi
+
+# Verify replay attack protection for reset token
+REPLAY_RESET=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/reset-password" \
+  -H "Content-Type: application/json" \
+  -d "{\"token\":\"${RESET_TOKEN}\",\"newPassword\":\"${TEST_NEW_PASSWORD}\"}")
+
+RR_CODE=$(echo "$REPLAY_RESET" | tail -n1)
+RR_BODY=$(echo "$REPLAY_RESET" | sed '$d')
+
+if [ "$RR_CODE" -eq 400 ] && assert_flat_error "$RR_BODY" 400; then
+  pass "Replay attack prevented: Single-use reset token was purged (HTTP 400)"
+else
+  fail "Reset token replay attack succeeded. Received: HTTP ${RR_CODE} - ${RR_BODY}"
+fi
+
+# Verify previous active session was completely revoked in Redis
+ME_POST_RESET=$(curl -s -w "\n%{http_code}" -b "${COOKIE_JAR}" -X GET "${BASE_URL}/auth/me")
+MPR_CODE=$(echo "$ME_POST_RESET" | tail -n1)
+MPR_BODY=$(echo "$ME_POST_RESET" | sed '$d')
+
+if [ "$MPR_CODE" -eq 401 ] && assert_flat_error "$MPR_BODY" 401; then
+  pass "Security revocation verified: Previous active sessions invalidated in Redis following reset"
+else
+  fail "Active session remained valid after password reset. Received: HTTP ${MPR_CODE} - ${MPR_BODY}"
+fi
+
+# Old password rejection
+OLD_PW_LOGIN=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\"}")
+
+OPL_CODE=$(echo "$OLD_PW_LOGIN" | tail -n1)
+OPL_BODY=$(echo "$OLD_PW_LOGIN" | sed '$d')
+
+if [ "$OPL_CODE" -eq 401 ] && assert_flat_error "$OPL_BODY" 401; then
+  pass "Old password rejected upon login (Argon2id credential check)"
+else
+  fail "Old password was still accepted after reset. Received: HTTP ${OPL_CODE} - ${OPL_BODY}"
+fi
+
+# New password verification
+NEW_PW_LOGIN=$(curl -s -i -c "${RESET_COOKIE_JAR}" -X POST "${BASE_URL}/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_NEW_PASSWORD}\"}")
+
+NPL_CODE=$(echo "$NEW_PW_LOGIN" | grep -i "^HTTP/" | tail -n1 | awk '{print $2}')
+NPL_BODY=$(echo "$NEW_PW_LOGIN" | sed '1,/^\r\{0,1\}$/d')
+
+if [ "$NPL_CODE" -eq 200 ] && assert_flat_success "$NPL_BODY" 200; then
+  pass "Authenticated successfully with new password (HTTP 200)"
+else
+  fail "Login with new password failed. Received: HTTP ${NPL_CODE} - ${NPL_BODY}"
+fi
+
+# ==============================================================================
+# 10. ROLE-BASED ACCESS CONTROL (RBAC)
+# ==============================================================================
+info "10. RBAC & RolesGuard Evaluation"
+
+ADMIN_RESP=$(curl -s -w "\n%{http_code}" -b "${RESET_COOKIE_JAR}" -X GET "${BASE_URL}/auth/admin-check")
 HTTP_CODE=$(echo "$ADMIN_RESP" | tail -n1)
 BODY=$(echo "$ADMIN_RESP" | sed '$d')
 
@@ -281,9 +522,9 @@ else
 fi
 
 # ==============================================================================
-# 8. RATE LIMITING (SLIDING WINDOW OVER REDIS)
+# 11. RATE LIMITING (SLIDING WINDOW OVER REDIS)
 # ==============================================================================
-info "8. Distributed Rate Limiting Defense"
+info "11. Distributed Rate Limiting Defense"
 
 RL_HIT_429=false
 for i in {1..7}; do
@@ -308,12 +549,11 @@ else
 fi
 
 # ==============================================================================
-# 9. LOGOUT & REVOCATION
+# 12. LOGOUT & REVOCATION
 # ==============================================================================
-info "9. Session Revocation & Idempotency"
+info "12. Session Revocation & Idempotency"
 
-# Revoke Session
-LOGOUT_RESP=$(curl -s -i -b "${COOKIE_JAR}" -c "${COOKIE_JAR}" -X POST "${BASE_URL}/auth/logout")
+LOGOUT_RESP=$(curl -s -i -b "${RESET_COOKIE_JAR}" -c "${RESET_COOKIE_JAR}" -X POST "${BASE_URL}/auth/logout")
 HTTP_CODE=$(echo "$LOGOUT_RESP" | grep -i "^HTTP/" | tail -n1 | awk '{print $2}')
 BODY=$(echo "$LOGOUT_RESP" | sed '1,/^\r\{0,1\}$/d')
 
@@ -326,8 +566,7 @@ else
   fail "Logout did not succeed properly. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
 
-# Verify Redis session key was evicted
-REVOKED_ME=$(curl -s -w "\n%{http_code}" -b "${COOKIE_JAR}" -X GET "${BASE_URL}/auth/me")
+REVOKED_ME=$(curl -s -w "\n%{http_code}" -b "${RESET_COOKIE_JAR}" -X GET "${BASE_URL}/auth/me")
 HTTP_CODE=$(echo "$REVOKED_ME" | tail -n1)
 BODY=$(echo "$REVOKED_ME" | sed '$d')
 
@@ -337,7 +576,6 @@ else
   fail "Revoked session was still accepted. Received: HTTP ${HTTP_CODE} - ${BODY}"
 fi
 
-# Logout Idempotency (Calling logout without an active session)
 IDEMPOTENT_LOGOUT=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/auth/logout")
 HTTP_CODE=$(echo "$IDEMPOTENT_LOGOUT" | tail -n1)
 BODY=$(echo "$IDEMPOTENT_LOGOUT" | sed '$d')
@@ -349,5 +587,5 @@ else
 fi
 
 echo -e "\n${GREEN}================================================================${NC}"
-echo -e "${GREEN}  ALL 15 END-TO-END SECURITY & FLAT ENVELOPE CHECKS PASSED  ${NC}"
+echo -e "${GREEN}  ALL 26 END-TO-END SECURITY & FLAT ENVELOPE CHECKS PASSED  ${NC}"
 echo -e "${GREEN}================================================================${NC}\n"
