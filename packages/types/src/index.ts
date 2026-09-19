@@ -2,6 +2,7 @@ export * from './user.js';
 export * from './auth.js';
 export * from './api.js';
 export * from './profile.js';
+export * from './storage.js';
 
 /**
  * Standard system health status contract.

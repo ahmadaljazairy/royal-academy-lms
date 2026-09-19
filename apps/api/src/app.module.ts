@@ -14,6 +14,7 @@ import {RedisModule} from "./common/redis/redis.module.js";
 import {SecurityModule} from "./common/security/security.module.js";
 import {BullModule} from "@nestjs/bullmq";
 import {EmailModule} from "./common/email/email.module.js";
+import {StorageModule} from "./common/storage/index.js";
 
 @Module({
     imports: [
@@ -29,6 +30,7 @@ import {EmailModule} from "./common/email/email.module.js";
                 port: Number(process.env.REDIS_PORT || 6379),
             },
         }),
+        StorageModule,
     ],
     controllers: [AppController],
     providers: [AppService,
