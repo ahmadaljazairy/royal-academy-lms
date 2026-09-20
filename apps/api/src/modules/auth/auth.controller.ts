@@ -36,12 +36,12 @@ import type {
 // -----------------------------------------------------------------------------
 // Cross-Cutting Common Utilities (Guards, Decorators, DTOs)
 // -----------------------------------------------------------------------------
-import { Public } from '../common/decorators/public.decorator.js';
-import { Roles } from '../common/decorators/roles.decorator.js';
-import { RateLimit } from '../common/decorators/rate-limit.decorator.js';
-import { RateLimitGuard } from '../common/guards/rate-limit.guard.js';
-import { ResponseMessage } from '../common/decorators/response.decorators.js';
-import { ApiErrorResponseDto } from '../common/dto/api-response.dto.js';
+import { Public } from '../../common/decorators/public.decorator.js';
+import { Roles } from '../../common/decorators/roles.decorator.js';
+import { RateLimit } from '../../common/decorators/rate-limit.decorator.js';
+import { RateLimitGuard } from '../../common/guards/rate-limit.guard.js';
+import { ResponseMessage } from '../../common/decorators/response.decorators.js';
+import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
 
 // -----------------------------------------------------------------------------
 // Auth Domain Module Imports

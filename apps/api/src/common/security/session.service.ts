@@ -179,6 +179,55 @@ export class SessionService {
     }
 
     /**
+     * Destroys all active sessions for a user EXCEPT the currently active one,
+     * and records an audit log event.
+     */
+    async destroyOtherUserSessions(
+        userId: string,
+        activeSessionId: string,
+        metadata?: SessionMetadata,
+    ): Promise<number> {
+        if (!userId) {
+            return 0;
+        }
+
+        const redis = this.redisService.getClient();
+        const userSetKey = `${this.userSessionsPrefix}${userId}`;
+        const allSessionIds = await redis.smembers(userSetKey);
+
+        const sessionsToRevoke = allSessionIds.filter((id) => id !== activeSessionId);
+
+        if (!sessionsToRevoke.length) {
+            return 0;
+        }
+
+        const pipeline = redis.pipeline();
+        for (const sid of sessionsToRevoke) {
+            pipeline.del(`${this.sessionPrefix}${sid}`);
+            pipeline.srem(userSetKey, sid);
+        }
+
+        await pipeline.exec();
+
+        await this.audit.record({
+            userId,
+            event: SecurityAuditEvent.AUTH_PASSWORD_CHANGED,
+            ipAddress: metadata?.ipAddress,
+            userAgent: metadata?.userAgent,
+            metadata: {
+                revokedSessionCount: sessionsToRevoke.length,
+                retainedSessionId: activeSessionId,
+            },
+        });
+
+        this.logger.log(
+            `Revoked ${sessionsToRevoke.length} other sessions for user ${userId} (retained ${activeSessionId})`,
+        );
+
+        return sessionsToRevoke.length;
+    }
+
+    /**
      * Patches active session payloads in Redis for a specific user
      * while preserving each session's remaining TTL.
      */

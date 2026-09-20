@@ -15,7 +15,13 @@
     "type-check": "turbo run type-check",
     "clean": "turbo run clean && rm -rf node_modules",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\""
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+
+    "db:migrate": "pnpm --filter @template/database exec prisma migrate dev",
+    "db:seed": "pnpm --filter @template/database exec prisma db seed",
+    "db:reset": "pnpm --filter @template/database exec prisma migrate reset --force && pnpm db:seed",
+    "db:setup": "pnpm --filter @template/database exec prisma migrate dev && pnpm db:seed",
+    "db:studio": "pnpm --filter @template/database exec prisma studio"
   },
   "pnpm": {
     "overrides": {

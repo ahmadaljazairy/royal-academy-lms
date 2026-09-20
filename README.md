@@ -49,63 +49,67 @@ royal-academy-lms/
 ### Installation & Setup
 
 1. **Clone the repository:**
-
-  ```bash
-  git clone git@github.com:ahmadaljazairy/royal-academy-lms.git
-  cd royal-academy-lms
-  ```
+    
+      ```bash
+      git clone git@github.com:ahmadaljazairy/royal-academy-lms.git
+      cd royal-academy-lms
+      ```
 
 2. **Install workspace dependencies:**
+    
+      ```bash
+      pnpm install
+      ```
 
-  ```bash
-  pnpm install
-  ```
-
-3. **Start local infrastructure (PostgreSQL, Redis, Mailpit):**
-
-  ```bash
-  docker compose up -d
-  ```
+3. **Start local infrastructure (PostgreSQL, Redis, MinIO, Mailpit, RedisInsight):**
+    
+      ```bash
+      docker compose up -d
+      ```
 
 4. **Configure environment variables:**
 
-Copy `.env.example` templates to `.env` across the workspace:
+    Copy `.env.example` templates to `.env` across the workspace:
 
-  ```bash
-  cp packages/database/.env.example packages/database/.env
-  cp apps/api/.env.example apps/api/.env
-  cp apps/web/.env.example apps/web/.env
-  ```
+      ```bash
+      cp packages/database/.env.example packages/database/.env
+      cp apps/api/.env.example apps/api/.env
+      cp apps/web/.env.example apps/web/.env
+      ```
 
-5. **Build shared packages, generate client, and run migrations:**
-
-  ```bash
-  # Build shared packages (types, database)
-  pnpm build
-  
-  # Generate Prisma client and apply schema to PostgreSQL
-  pnpm --filter @template/database run db:migrate
-  ```
+5. **Build shared packages and initialize database:**
+    
+      ```bash
+      # Build shared packages (types, database)
+      pnpm build
+      
+      # Apply migrations and seed initial categories & admin user
+      pnpm db:setup
+      ```
 
 6. **Start development servers:**
-
-  ```
-  pnpm dev
-  ```
-
+    
+      ```bash
+      pnpm dev
+      ```
 
 ## Local Service Ports
 
-Once `pnpm dev` is running:
+Once infrastructure and servers are running:
 
-| **Service** | **URL** | **Description** |
+| **Service** | **URL** | **Credentials / Notes** |
 | --- | --- | --- |
 | **Web Client** | `http://localhost:5173` | React 19 Vite Dashboard |
 | **API Server** | `http://localhost:3000` | NestJS REST API |
 | **Swagger Docs** | `http://localhost:3000/api/docs` | OpenAPI Contract Explorer |
+| **MinIO Console** | `http://localhost:9001` | `minioadmin` / `minioadminpassword` |
+| **MinIO S3 API** | `http://localhost:9000` | S3 API endpoint for SDK |
 | **Mailpit UI** | `http://localhost:8025` | Local Email Inbox (Verification Links) |
+| **RedisInsight** | `http://localhost:5540` | Redis GUI (Connect to `redis:6379`) |
 
 ## Workspace Scripts
+
+### Application & Quality Commands
 
 | **Command** | **Action** |
 | --- | --- |
@@ -116,6 +120,14 @@ Once `pnpm dev` is running:
 | `pnpm format` | Formats all code with Prettier |
 | `pnpm test` | Runs test suites across the monorepo |
 
+### Database Commands
+
+| **Command** | **Action** |
+| --- | --- |
+| `pnpm db:setup` | Runs pending migrations and seeds the database |
+| `pnpm db:migrate` | Applies schema migrations in development mode |
+| `pnpm db:seed` | Executes `prisma/seed.ts` via tsx |
+| `pnpm db:reset` | Wipes database, reapplies all migrations, and reseeds |
 ## Documentation
 
 - [Development & Architecture Guide](https://github.com/ahmadaljazairy/royal-academy-lms/blob/main/docs/DEVELOPMENT.md)

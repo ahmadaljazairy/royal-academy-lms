@@ -1,6 +1,6 @@
 import {Injectable, Logger} from '@nestjs/common';
-import {RedisService} from '../common/redis/redis.service.js';
-import {TokenService} from '../common/security/token.service.js';
+import {RedisService} from '../../common/redis/redis.service.js';
+import {TokenService} from '../../common/security/token.service.js';
 
 export enum TokenType {
     EMAIL_VERIFICATION = 'verify',

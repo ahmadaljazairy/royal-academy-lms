@@ -12,12 +12,12 @@ import {
     type SessionResult,
     SessionService,
     SESSION_TTL_HOURS,
-} from '../common/security/session.service.js';
-import { PrismaService } from '../common/prisma/prisma.service.js';
-import { Argon2Service } from '../common/security/argon2.service.js';
-import {AuditLogService, SecurityAuditEvent} from "../common/audit/audit-log.service.js";
+} from '../../common/security/session.service.js';
+import { PrismaService } from '../../common/prisma/prisma.service.js';
+import { Argon2Service } from '../../common/security/argon2.service.js';
+import {AuditLogService, SecurityAuditEvent} from "../../common/audit/audit-log.service.js";
 import {AuthTokenManager, TokenType} from "./auth-token.manager.js";
-import {EmailQueueService} from "../common/email/email-queue.service.js";
+import {EmailQueueService} from "../../common/email/email-queue.service.js";
 
 export interface LoginResult {
     session: SessionResult;
@@ -71,6 +71,10 @@ export class AuthService {
                 displayName: dto.displayName,
                 termsAcceptedAt,
                 isEmailVerified: false,
+                // Atomically creates the linked Profile record
+                profile: {
+                    create: {},
+                },
             },
             select: {
                 id: true,

@@ -49,6 +49,12 @@ async function main() {
             role: 'ADMIN',
             isEmailVerified: true,
             termsAcceptedAt: new Date(),
+            profile: {
+                create: {
+                    headline: 'System Administrator',
+                    bio: 'Platform administration and course oversight.',
+                },
+            },
         },
     });
 

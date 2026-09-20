@@ -15,7 +15,25 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  profile   Profile?
   auditLogs SecurityAuditLog[]
 
   @@map("users")
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headline    String?  @db.VarChar(120)
+  bio         String?  @db.Text
+  avatarUrl   String?
+  phoneNumber String?  @db.VarChar(30)
+  websiteUrl  String?
+  githubUrl   String?
+  linkedinUrl String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("profiles")
 }

@@ -1,8 +1,38 @@
 import type { Role } from './user.js';
+import type {PresignedPostUploadResponse} from "./storage.js";
 
-/**
- * Full private user profile payload returned to the authenticated owner.
- */
+// ==========================================
+// REQUEST PAYLOADS (Implemented by API DTOs)
+// ==========================================
+
+export interface UpdateProfileRequest {
+    displayName?: string;
+    headline?: string;
+    bio?: string;
+    phoneNumber?: string;
+    websiteUrl?: string;
+    githubUrl?: string;
+    linkedinUrl?: string;
+}
+
+export interface RequestAvatarUploadRequest {
+    mimeType: string;
+    originalFilename?: string;
+}
+
+export interface ConfirmAvatarUploadRequest {
+    fileKey: string;
+}
+
+export interface ChangePasswordRequest {
+    currentPassword: string;
+    newPassword: string;
+}
+
+// ==========================================
+// RESPONSE PAYLOADS (Returned inside ApiResponse<T>)
+// ==========================================
+
 export interface UserProfileResponse {
     userId: string;
     email: string;
@@ -20,9 +50,6 @@ export interface UserProfileResponse {
     updatedAt: string;
 }
 
-/**
- * Restricted profile payload safe for public visibility (students/instructors viewing each other).
- */
 export interface PublicProfileResponse {
     userId: string;
     displayName: string;
@@ -35,11 +62,13 @@ export interface PublicProfileResponse {
     linkedinUrl: string | null;
 }
 
-/**
- * Metadata response when requesting a presigned avatar upload URL.
- */
-export interface PresignedAvatarUploadResponse {
-    uploadUrl: string;
-    fileKey: string;
-    expiresInSeconds: number;
+export interface ConfirmAvatarUploadResponse {
+    avatarUrl: string;
 }
+
+export interface ChangePasswordResponse {
+    message: string;
+}
+
+// Re-export storage ticket response for profile avatar usage convenience
+export type AvatarUploadTicketResponse = PresignedPostUploadResponse;

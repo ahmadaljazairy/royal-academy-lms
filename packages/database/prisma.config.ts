@@ -9,7 +9,7 @@ try {
 export default defineConfig({
     schema: "./prisma/schema",
     migrations: {
-        seed: "node --env-file=./.env --import tsx ./prisma/schema/seed.ts",
+        seed: "node --env-file=./.env --import tsx ./prisma/seed.ts",
     },
     datasource: {
         url: process.env["DATABASE_URL"],

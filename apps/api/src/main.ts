@@ -5,7 +5,7 @@ import {Logger, ValidationPipe} from "@nestjs/common";
 import { AppModule } from "./app.module.js";
 import cookieParser from "cookie-parser";
 import {DocumentBuilder, SwaggerModule} from "@nestjs/swagger";
-import {SESSION_COOKIE_NAME} from "./auth/auth.constants.js";
+import {SESSION_COOKIE_NAME} from "./modules/auth/auth.constants.js";
 import helmet from 'helmet';
 
 async function bootstrap(): Promise<void> {

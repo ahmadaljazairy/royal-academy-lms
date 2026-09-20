@@ -8,8 +8,8 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { SESSION_COOKIE_NAME } from '../auth.constants.js';
 import type { UserSession } from '@template/types';
-import  {SessionService} from "../../common/security/session.service.js";
-import {IS_PUBLIC_KEY} from "../../common/decorators/public.decorator.js";
+import  {SessionService} from "../../../common/security/session.service.js";
+import {IS_PUBLIC_KEY} from "../../../common/decorators/public.decorator.js";
 
 export interface AuthenticatedRequest extends Request {
     user: UserSession;

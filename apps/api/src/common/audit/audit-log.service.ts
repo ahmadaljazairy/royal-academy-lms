@@ -10,6 +10,9 @@ export const SecurityAuditEvent = {
     AUTH_PASSWORD_RESET_REQUESTED: 'AUTH_PASSWORD_RESET_REQUESTED',
     AUTH_PASSWORD_RESET_COMPLETED: 'AUTH_PASSWORD_RESET_COMPLETED',
     AUTH_ALL_SESSIONS_REVOKED: 'AUTH_ALL_SESSIONS_REVOKED',
+    /** Revokes all sessions except current active session
+     * */
+    AUTH_PASSWORD_CHANGED: 'AUTH_PASSWORD_CHANGED'
 } as const;
 
 export type SecurityAuditEventType =
