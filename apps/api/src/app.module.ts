@@ -15,6 +15,7 @@ import {SecurityModule} from "./common/security/security.module.js";
 import {BullModule} from "@nestjs/bullmq";
 import {EmailModule} from "./common/email/email.module.js";
 import {StorageModule} from "./common/storage/index.js";
+import {UsersModule} from "./modules/users/users.module.js";
 
 @Module({
     imports: [
@@ -22,6 +23,7 @@ import {StorageModule} from "./common/storage/index.js";
         RedisModule,
         AuditModule,
         AuthModule,
+        UsersModule,
         EmailModule,
         PrismaModule,
         BullModule.forRoot({
