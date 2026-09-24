@@ -1,30 +1,58 @@
-import { PrismaClient } from '@prisma/client';
+/**
+ * @file Database Seeding Orchestrator
+ * @description Populates baseline system records required for platform startup.
+ *
+ * Operations are strictly idempotent:
+ * - Safe to execute multiple times against both local and staged environments.
+ * - Uses `upsert` strategies to prevent duplicate record collisions.
+ * - Enforces cryptographically secure Argon2id password hashing for root accounts.
+ *
+ * Required Environment Variables:
+ * - `DATABASE_URL`: Fully qualified PostgreSQL connection string.
+ * - `ADMIN_SEED_PASSWORD`: Initial plaintext password for the root administrator.
+ */
+
+import { PrismaClient, Role } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as argon2 from 'argon2';
 
-// 1. Strict Environment Variable Validation
+// ============================================================================
+// 1. Environment Variable Validation & Pre-flight Checks
+// ============================================================================
+
 const adminPassword = process.env.ADMIN_SEED_PASSWORD;
 const databaseUrl = process.env.DATABASE_URL;
 
-if (!adminPassword) {
-    throw new Error('❌ FATAL: ADMIN_SEED_PASSWORD is not set in the .env file.');
-}
-if (!databaseUrl) {
-    throw new Error('❌ FATAL: DATABASE_URL is not set in the .env file.');
+if (!adminPassword || adminPassword.trim().length === 0) {
+    throw new Error(
+        '❌ FATAL: ADMIN_SEED_PASSWORD environment variable is missing or empty. Please check your .env configuration.',
+    );
 }
 
-// 2. Initialize the Driver Adapter for Prisma 7
+if (!databaseUrl || databaseUrl.trim().length === 0) {
+    throw new Error(
+        '❌ FATAL: DATABASE_URL environment variable is missing or empty. Please check your .env configuration.',
+    );
+}
+
+// ============================================================================
+// 2. Client Initialization (Driver Adapter Pattern)
+// ============================================================================
+
 const adapter = new PrismaPg({ connectionString: databaseUrl });
 const prisma = new PrismaClient({ adapter });
 
-async function main() {
-    process.stdout.write(' - Starting database seed...\n');
+// ============================================================================
+// 3. Domain Seed Routines
+// ============================================================================
 
-    // Hash the secure password from the .env file
-    const securePasswordHash = await argon2.hash(adminPassword);
-
-    // Seed Initial Categories
-    const programmingCategory = await prisma.category.upsert({
+/**
+ * Populates foundational taxonomy categories for course grouping.
+ *
+ * @param client - Active PrismaClient instance.
+ */
+async function seedCategories(client: PrismaClient): Promise<void> {
+    const programmingCategory = await client.category.upsert({
         where: { slug: 'programming' },
         update: {},
         create: {
@@ -33,20 +61,30 @@ async function main() {
             description: 'Software development and computer science courses',
         },
     });
-    process.stdout.write(` - Created Category: ${programmingCategory.name}\n`);
 
-    // Seed the Default Administrator
-    const adminUser = await prisma.user.upsert({
-        where: { email: 'admin@royalacademy.com' },
+    process.stdout.write(` - [Category] Verified: "${programmingCategory.name}" (${programmingCategory.id})\n`);
+}
+
+/**
+ * Provisions the default root platform administrator and associated profile.
+ *
+ * @param client - Active PrismaClient instance.
+ * @param passwordHash - Pre-computed Argon2id digest of the seed password.
+ */
+async function seedAdminUser(client: PrismaClient, passwordHash: string): Promise<void> {
+    const adminEmail = 'admin@royalacademy.com';
+
+    const adminUser = await client.user.upsert({
+        where: { email: adminEmail },
         update: {
-            passwordHash: securePasswordHash,
+            passwordHash,
             termsAcceptedAt: new Date(),
         },
         create: {
-            email: 'admin@royalacademy.com',
-            passwordHash: securePasswordHash,
+            email: adminEmail,
+            passwordHash,
             displayName: 'System Administrator',
-            role: 'ADMIN',
+            role: Role.ADMIN,
             isEmailVerified: true,
             termsAcceptedAt: new Date(),
             profile: {
@@ -56,18 +94,42 @@ async function main() {
                 },
             },
         },
+        include: {
+            profile: true,
+        },
     });
 
-    process.stdout.write(` - Created Admin User: ${adminUser.email}\n`);
-    process.stdout.write(' - Seeding finished.\n');
+    process.stdout.write(` - [User] Admin Verified: "${adminUser.email}" (${adminUser.id})\n`);
+}
+
+// ============================================================================
+// 4. Main Execution Pipeline
+// ============================================================================
+
+/**
+ * Main seeding pipeline entry point.
+ */
+async function main(): Promise<void> {
+    const startTime = Date.now();
+    process.stdout.write('🌱 Starting database seeding pipeline...\n');
+
+    // Compute password hash once ahead of user operations
+    const securePasswordHash = await argon2.hash(adminPassword!);
+
+    await seedCategories(prisma);
+    await seedAdminUser(prisma, securePasswordHash);
+
+    const durationMs = Date.now() - startTime;
+    process.stdout.write(`🏁 Seeding completed successfully in ${durationMs}ms.\n`);
 }
 
 main()
-    .catch((e) => {
-        console.error(e);
+    .catch((error: unknown) => {
+        process.stderr.write(`❌ Seeding failed with an unhandled exception:\n`);
+        console.error(error);
         process.exit(1);
     })
     .finally(async () => {
-        // Gracefully close the database connection
+        // Terminate connection pool cleanly to allow process to exit immediately
         await prisma.$disconnect();
     });

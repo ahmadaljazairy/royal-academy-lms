@@ -1,16 +1,45 @@
+/// Taxonomic classification and navigational hierarchy for courses.
+/// Supports multi-level tree nesting (parent-child categories) with SEO-friendly slugs.
 model Category {
-  id          String  @id @default(uuid())
-  name        String  @unique
-  slug        String  @unique
-  description String?
+  /// Unique identifier generated via UUID v4.
+  id String @id @default(uuid())
 
-  // Self-referencing relationship for subcategories
-  parentId String?
-  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  /// Human-readable category display name (e.g., "Computer Science", "Web Development").
+  /// Must be unique across the platform.
+  name String @unique
+
+  /// URL-friendly URL slug for routing and SEO (e.g., "computer-science", "web-dev").
+  /// Must be unique across the platform.
+  slug String @unique
+
+  /// Optional contextual description or summary of topics covered under this taxonomy.
+  description String? @db.Text
+
+  // --- Self-Referencing Tree Hierarchy ---
+
+  /// Foreign key referencing the parent Category in the tree hierarchy.
+  /// Set to `null` for root/top-level categories.
+  parentId String? @map("parent_id")
+
+  /// Ancestor category. Guarded by `onDelete: Restrict` to prevent accidental deletion
+  /// of a parent category while child subcategories still depend on it.
+  parent Category? @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+
+  /// Descendant subcategories nested directly under this category.
   children Category[] @relation("CategoryHierarchy")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // --- Timestamps ---
 
+  /// Timestamp when the category was registered.
+  createdAt DateTime @default(now()) @map("created_at")
+
+  /// Timestamp when the category was last modified.
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // --- Indexes & Table Configuration ---
+
+  /// Accelerates parent-child tree traversals (e.g., fetching all subcategories for a given parent).
   @@index([parentId])
+  /// Maps model to PostgreSQL table following lowercase plural naming convention.
+  @@map("categories")
 }

@@ -1,7 +1,28 @@
+// ============================================================================
+// Database & Client Core Infrastructure Configuration
+// ============================================================================
+
+// Primary relational database connection configuration.
+// Note: Connection string resolution is delegated to `prisma.config.ts`
+// (via process.env["DATABASE_URL"]) to support unified environment loading.
 datasource db {
   provider = "postgresql"
 }
 
+// Generates the type-safe Prisma Client tailored to the unified schema.
+// Emits TypeScript types, query builders, and runtime bindings consumed by @template/database.
 generator client {
   provider = "prisma-client-js"
+}
+
+// Compiles the entire schema domain (users, profiles, categories, audit logs)
+// into an interactive visual Mermaid ERD diagram on every `prisma generate`.
+//
+// Relative Path Resolution:
+//   ../../../../ -> Navigates from `packages/database/prisma/schema/`
+//                   up to the workspace root `docs/architecture/erd.md`.
+generator erd {
+  provider = "prisma-erd-generator"
+  output   = "../../../../docs/architecture/erd.md"
+  theme    = "neutral"
 }

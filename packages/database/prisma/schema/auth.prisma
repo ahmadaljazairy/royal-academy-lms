@@ -1,16 +1,45 @@
+/// Append-only immutable ledger tracking security-critical lifecycle events.
+/// Used for forensic auditing, account takeover detection, compliance, and user security timelines.
 model SecurityAuditLog {
-  id        String   @id @default(cuid())
-  userId    String?  @map("user_id")
-  event     String
-  ipAddress String?  @map("ip_address")
-  userAgent String?  @map("user_agent")
-  metadata  Json?
+  /// Unique identifier generated via collision-resistant CUID.
+  id String @id @default(cuid())
+
+  /// Foreign key referencing the actor User identity.
+  /// Nullable to record anonymous attempts (e.g., failed logins for unknown emails)
+  /// and to retain audit history if the user account is subsequently deleted.
+  userId String? @map("user_id")
+
+  /// Standardized event identifier string.
+  /// Recommended convention: `<DOMAIN>.<ACTION>.<STATUS>`
+  /// Examples: `AUTH.LOGIN.SUCCESS`, `AUTH.PASSWORD_RESET.REQUESTED`, `ROLE.UPDATED`.
+  event String
+
+  /// Client IP address (IPv4 or IPv6) extracted from network headers (X-Forwarded-For / req.ip).
+  ipAddress String? @map("ip_address")
+
+  /// Raw User-Agent string identifying the client client device, browser, or SDK.
+  userAgent String? @map("user_agent")
+
+  /// Structured arbitrary event payload storing contextual audit metadata.
+  /// Examples: `{ "reason": "invalid_password", "targetUserId": "...", "diff": { ... } }`.
+  metadata Json?
+
+  /// Timestamp when the audit event occurred. Immutable point-in-time record.
   createdAt DateTime @default(now()) @map("created_at")
 
+  // --- Relations ---
+
+  /// Owning user account. Retains log integrity with SetNull if the user is deleted.
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  // --- Indexes & Table Configuration ---
+
+  /// Accelerates user-specific timeline queries (e.g., "Recent activity on your account").
   @@index([userId])
+  /// Accelerates system-wide event analysis (e.g., "Find all failed login spikes in the last hour").
   @@index([event])
+  /// Optimizes time-window filtering and automated retention/archival cleanup routines.
   @@index([createdAt])
+  /// Maps to PostgreSQL table name following standard snake_case pluralization.
   @@map("security_audit_logs")
 }

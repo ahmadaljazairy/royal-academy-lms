@@ -31,6 +31,7 @@
     "pg": "^8.13.1"
   },
   "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^11.17.0",
     "@prisma/config": "^7.10.0",
     "@template/eslint-config": "workspace:*",
     "@template/typescript-config": "workspace:*",
@@ -39,6 +40,8 @@
     "dotenv": "^16.4.7",
     "eslint": "^9.39.5",
     "prisma": "^7.10.0",
+    "prisma-erd-generator": "^3.2.1",
+    "puppeteer": "^25.12.0",
     "tsx": "^4.23.13",
     "typescript": "^5.7.3"
   },

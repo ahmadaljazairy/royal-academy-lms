@@ -1,39 +1,97 @@
+/// System-wide authorization tiers.
 enum Role {
+  /// Standard learner account with course enrollment and participation permissions.
   STUDENT
+
+  /// Educator account capable of authoring courses, managing curricula, and grading.
   INSTRUCTOR
+
+  /// Platform operator with root administration, audit log access, and user moderation rights.
   ADMIN
 }
 
+/// Core authentication and identity record.
+/// Handles security credentials, account status, and root associations.
 model User {
-  id              String    @id @default(cuid())
-  email           String    @unique
-  displayName     String
-  passwordHash    String
-  role            Role      @default(STUDENT)
-  isEmailVerified Boolean   @default(false)
-  termsAcceptedAt DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  /// Unique identifier generated via collision-resistant CUID.
+  id String @id @default(cuid())
 
-  profile   Profile?
+  /// Unique email address used for primary identity, authentication, and communications.
+  email String @unique
+
+  /// Public display name or legal full name shown across platform surfaces.
+  displayName String @map("display_name")
+
+  /// Cryptographic hash of the user password (Argon2id digest).
+  passwordHash String @map("password_hash")
+
+  /// Access control role dictating system permissions (Default: STUDENT).
+  role Role @default(STUDENT)
+
+  /// Verification flag confirming ownership of registered email address.
+  isEmailVerified Boolean @default(false) @map("is_email_verified")
+
+  /// Timestamp recording explicit agreement to terms of service and privacy policy.
+  termsAcceptedAt DateTime? @map("terms_accepted_at")
+
+  /// Timestamp when the user record was initially created.
+  createdAt DateTime @default(now()) @map("created_at")
+
+  /// Timestamp when the user record was last modified.
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // --- Relations ---
+
+  /// Extended personal and professional profile details (1-to-1).
+  profile Profile?
+
+  /// Historical security and authentication audit logs triggered by this identity.
   auditLogs SecurityAuditLog[]
 
+  /// Indexes & Table Configuration
+  @@index([role])
   @@map("users")
 }
 
+/// Extended metadata and public resume information for an identity.
+/// Kept decoupled from the core User record to maintain lean session lookups.
 model Profile {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  headline    String?  @db.VarChar(120)
-  bio         String?  @db.Text
-  avatarUrl   String?
-  phoneNumber String?  @db.VarChar(30)
-  websiteUrl  String?
-  githubUrl   String?
-  linkedinUrl String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  /// Unique identifier generated via collision-resistant CUID.
+  id String @id @default(cuid())
 
+  /// Foreign key referencing the parent User identity (Strict 1-to-1).
+  userId String @unique @map("user_id")
+
+  /// Owning user record. Cascades deletion when the parent User is removed.
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Short professional tagline or academic focus (Max: 120 characters).
+  headline String? @db.VarChar(120)
+
+  /// Extended Markdown-compatible biography or portfolio overview.
+  bio String? @db.Text
+
+  /// Fully qualified CDN URL or storage object key for the user's avatar.
+  avatarUrl String? @map("avatar_url")
+
+  /// Contact phone number in E.164 or standardized international format.
+  phoneNumber String? @map("phone_number") @db.VarChar(30)
+
+  /// Personal portfolio or corporate website URL.
+  websiteUrl String? @map("website_url")
+
+  /// Public GitHub profile URL or username link.
+  githubUrl String? @map("github_url")
+
+  /// Public LinkedIn profile URL.
+  linkedinUrl String? @map("linkedin_url")
+
+  /// Timestamp when the profile record was initially created.
+  createdAt DateTime @default(now()) @map("created_at")
+
+  /// Timestamp when the profile was last updated.
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  /// Table Configuration
   @@map("profiles")
 }
