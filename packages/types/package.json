@@ -17,7 +17,8 @@
     "dev": "tsc --watch --preserveWatchOutput",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "doc": "typedoc"
   },
   "devDependencies": {
     "@template/eslint-config": "workspace:*",
