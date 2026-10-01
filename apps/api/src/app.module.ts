@@ -1,6 +1,4 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
 
 import {APP_FILTER, APP_GUARD, APP_INTERCEPTOR} from "@nestjs/core";
 import {TransformResponseInterceptor} from "./common/interceptors/transform-response.interceptor.js";
@@ -34,8 +32,8 @@ import {UsersModule} from "./modules/users/users.module.js";
         }),
         StorageModule,
     ],
-    controllers: [AppController],
-    providers: [AppService,
+    controllers: [],
+    providers: [
         {
             provide: APP_INTERCEPTOR,
             useClass: TransformResponseInterceptor,
