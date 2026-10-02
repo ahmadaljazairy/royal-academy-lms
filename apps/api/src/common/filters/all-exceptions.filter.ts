@@ -1,3 +1,19 @@
+/**
+ * @file Global Exception Handling Filter
+ * @module @template/api/common/filters/all-exceptions.filter
+ * @description Catches all unhandled HTTP exceptions, ORM/database constraints,
+ * and system errors across the application, transforming them into a unified flat
+ * error envelope: `ApiErrorResponse`.
+ *
+ * Capabilities & Security Hardening:
+ * 1. CRLF / Header Injection Defense: Sanitizes incoming client trace IDs against newline characters.
+ * 2. Information Disclosure Prevention: Obfuscates raw internal 500 error details in production.
+ * 3. Validation Array Preservation: Passes class-validator error array strings through cleanly.
+ * 4. ORM & Database Constraint Mapping: Maps Prisma / SQL unique constraint collisions (P2002) to 409 Conflict
+ *    and missing record errors (P2025) to 404 Not Found.
+ * 5. Pre-Committed Stream Safety: Prevents writing JSON error envelopes if response headers are already sent.
+ */
+
 import {
     type ExceptionFilter,
     Catch,
@@ -7,16 +23,11 @@ import {
     Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 
 // Shared Monorepo Contracts
-import type { ApiErrorResponse, UserSession } from '@template/types';
+import type {ApiErrorResponse, UserSession} from '@template/types';
 
-/**
- * Global exception filter that catches all unhandled rejections, HTTP exceptions,
- * and ORM/database constraints, transforming them into a unified flat error envelope:
- * `ApiErrorResponse`.
- */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
     private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -24,7 +35,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
     catch(exception: unknown, host: ArgumentsHost): void {
         const ctx = host.switchToHttp();
         const response = ctx.getResponse<Response>();
-        const request = ctx.getRequest<Request & { id?: string; user?: UserSession }>();
+        const request = ctx.getRequest<
+            Request & { id?: string; user?: UserSession }
+        >();
 
         // -------------------------------------------------------------------------
         // 1. Guard against pre-committed streams / headers
@@ -37,14 +50,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
         }
 
         // -------------------------------------------------------------------------
-        // 2. Correlation & Distributed Trace ID Continuity
+        // 2. Resolve, Sanitize (CRLF Defense), and Inject Trace ID
         // -------------------------------------------------------------------------
-        const traceId =
+        const rawTraceId =
             request.id ||
             (request.headers['x-trace-id'] as string) ||
             (request.headers['x-request-id'] as string) ||
-            (request.headers['x-correlation-id'] as string) ||
-            randomUUID();
+            (request.headers['x-correlation-id'] as string);
+
+        // Security Hardening: Strip CRLF characters (\r, \n) to prevent HTTP Response Splitting
+        const sanitizedTraceId = rawTraceId
+            ? rawTraceId.replace(/[\r\n]/g, '').trim()
+            : undefined;
+
+        const traceId = sanitizedTraceId || randomUUID();
 
         // Ensure request and response share the exact trace identifier
         request.id = traceId;
@@ -61,7 +80,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         let stack: string | undefined = undefined;
 
         if (exception instanceof HttpException) {
-            // Path 1: Managed NestJS HTTP Exceptions
+            // Path 1: Managed NestJS HTTP Exceptions (BadRequestException, NotFoundException, etc.)
             status = exception.getStatus();
             const res = exception.getResponse();
 
@@ -71,12 +90,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
             } else if (typeof res === 'object' && res !== null) {
                 const resObj = res as Record<string, unknown>;
                 message = (resObj.message as string | string[]) || exception.message;
-                // Prefer explicit class name (e.g. 'BadRequestException') over 'Bad Request'
                 errorType = exception.constructor.name || (resObj.error as string);
             }
             stack = exception.stack;
         } else if (this.isDatabaseConstraintError(exception)) {
-            // Path 2: ORM Unique Key Collisions (Prisma P2002, Postgres 23505)
+            // Path 2: ORM Unique Key Collisions (Prisma P2002, Postgres 23505, Mongo 11000)
             status = HttpStatus.CONFLICT;
             errorType = 'ConflictException';
             message = 'A resource with these details already exists.';
@@ -88,7 +106,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
             message = 'The requested resource was not found.';
             stack = (exception as Error).stack;
         } else if (exception instanceof Error) {
-            // Path 4: Standard System / Runtime Errors
+            // Path 4: Standard System / Uncaught Runtime Errors
             status = HttpStatus.INTERNAL_SERVER_ERROR;
             errorType = exception.name || 'InternalServerError';
             message = isProduction
@@ -99,22 +117,27 @@ export class AllExceptionsFilter implements ExceptionFilter {
             // Path 5: Non-Error Primitive Throws (e.g., throw "string")
             status = HttpStatus.INTERNAL_SERVER_ERROR;
             errorType = 'UnhandledPrimitiveException';
-            message = isProduction ? 'An unexpected error occurred.' : String(exception);
+            message = isProduction
+                ? 'An unexpected error occurred.'
+                : String(exception);
         }
 
         // -------------------------------------------------------------------------
-        // 4. Resolve Context & Identity for Structured Logging
+        // 4. Sanitize 500-Level Messages in Production
         // -------------------------------------------------------------------------
-        // UserSession stores `userId`, not `id`
-        const userId =
-            request.user?.userId ||
-            (request.user as unknown as { id?: string })?.id ||
-            'anonymous';
+        if (isProduction && status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+            message = 'An unexpected error occurred. Please contact support.';
+        }
 
-        // Support reverse proxies for client IP
+        // -------------------------------------------------------------------------
+        // 5. Resolve Context & Identity for Structured Logging
+        // -------------------------------------------------------------------------
+        const userId = request.user?.userId || 'anonymous';
+
         const clientIp =
             (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-            request.ip;
+            request.ip ||
+            'unknown';
 
         const errorLog = {
             traceId,
@@ -125,27 +148,28 @@ export class AllExceptionsFilter implements ExceptionFilter {
             clientIp,
             userAgent: request.get('user-agent'),
             userId,
-            errorMessage: message,
             errorType,
+            errorMessage: message,
         };
 
-        const formattedMessage =
-            typeof message === 'string' ? message : JSON.stringify(message);
+        const formattedMessage = Array.isArray(message)
+            ? message.join(', ')
+            : message;
 
         if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
             this.logger.error(
-                `[${traceId}] ${request.method} ${request.url} - ${status} - ${errorType}: ${formattedMessage}`,
+                `[${traceId}] ${request.method} ${request.url} - ${status} ${errorType}: ${formattedMessage}`,
                 stack,
             );
             this.logger.debug(`Context: ${JSON.stringify(errorLog)}`);
         } else {
             this.logger.warn(
-                `[${traceId}] ${request.method} ${request.url} - ${status} - ${errorType}: ${formattedMessage} [User: ${userId}]`,
+                `[${traceId}] ${request.method} ${request.url} - ${status} ${errorType}: ${formattedMessage} [User: ${userId}]`,
             );
         }
 
         // -------------------------------------------------------------------------
-        // 5. Assemble Flat Response Envelope (ApiErrorResponse)
+        // 6. Assemble Flat Response Envelope (ApiErrorResponse)
         // -------------------------------------------------------------------------
         const errorPayload: ApiErrorResponse = {
             success: false,
@@ -171,12 +195,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
         if (!exception || typeof exception !== 'object') return false;
 
         const err = exception as Record<string, unknown>;
-        return err.code === 'P2002' || err.code === '23505' || err.code === 11000;
+        return (
+            err.code === 'P2002' || err.code === '23505' || err.code === 11000
+        );
     }
 
     /**
      * Identifies common SQL/ORM record-not-found errors:
-     * - Prisma: P2025 (An operation failed because it depends on one or more records that were required but not found)
+     * - Prisma: P2025 (Record to update/delete not found)
      */
     private isDatabaseNotFoundError(exception: unknown): boolean {
         if (!exception || typeof exception !== 'object') return false;
