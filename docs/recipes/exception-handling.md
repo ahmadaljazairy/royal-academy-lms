@@ -8,7 +8,7 @@ This document defines the architectural standards for error handling across all 
 
 2. **Let database constraint errors bubble up:** Do not wrap simple Prisma operations in `try/catch` blocks just to re-throw a `409 Conflict` or `404 Not Found`. The filter automatically maps Prisma codes (`P2002` $\rightarrow$ `409`, `P2025` $\rightarrow$ `404`).
 
-3. **Decoupled execution:** The error handling pipeline operates globally across all HTTP routes regardless of whether Swagger decorators (`@ApiEndpoint()`) are present.
+3. **Decoupled execution:** The error handling pipeline operates globally across all HTTP routes regardless of whether Swagger decorators (`@ApiDoc()`) are present.
 
 4. **Information Leakage Prevention:** In `production` (`NODE_ENV=production`), all 500-level error messages are obfuscated to prevent exposing raw database details, infrastructure IPs, or internal stack traces to external clients.
 
