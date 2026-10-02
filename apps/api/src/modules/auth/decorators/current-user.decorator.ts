@@ -1,6 +1,6 @@
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
-import type { AuthenticatedRequest } from '../guards/session-auth.guard.js';
 import type { UserSession } from '@template/types';
+import type {AuthenticatedRequest} from "../../../common/interfaces/index.js";
 
 export const CurrentUser = createParamDecorator(
     (data: keyof UserSession | undefined, ctx: ExecutionContext) => {

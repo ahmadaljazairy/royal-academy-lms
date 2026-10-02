@@ -5,11 +5,12 @@ import { AuthController } from './auth.controller.js';
 import { SessionAuthGuard } from './guards/session-auth.guard.js';
 import { RateLimitGuard } from '../../common/guards/rate-limit.guard.js';
 import { AuthTokenManager } from './auth-token.manager.js';
+import {SessionCacheRepository} from "./cache/session-cache.repository.js";
 
 @Module({
     imports: [SecurityModule],
     controllers: [AuthController],
-    providers: [AuthService, SessionAuthGuard, RateLimitGuard, AuthTokenManager],
-    exports: [AuthService, SessionAuthGuard, RateLimitGuard, AuthTokenManager],
+    providers: [AuthService, SessionAuthGuard, RateLimitGuard, AuthTokenManager, SessionCacheRepository],
+    exports: [AuthService, SessionAuthGuard, RateLimitGuard, AuthTokenManager,SessionCacheRepository ],
 })
 export class AuthModule {}

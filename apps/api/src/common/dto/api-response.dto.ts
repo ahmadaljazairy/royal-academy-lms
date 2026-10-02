@@ -5,7 +5,7 @@
  * Used by `@ApiDoc()` to compose dynamic success schemas and document standardized error responses.
  */
 
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import type { ApiSuccessResponse, ApiErrorResponse } from '@template/types';
 
 /**
@@ -19,7 +19,7 @@ export class BaseSuccessEnvelopeDto<T = unknown>
         example: true,
         description: 'Discriminator confirming request success',
     })
-    success: true = true;
+    success: true = true as const;
 
     @ApiProperty({
         description: 'HTTP response status code',
@@ -59,7 +59,7 @@ export class ApiErrorResponseDto implements ApiErrorResponse {
         example: false,
         description: 'Discriminator confirming request failure',
     })
-    success: false = false;
+    success: false = false as const;
 
     @ApiProperty({
         description: 'HTTP error status code',
