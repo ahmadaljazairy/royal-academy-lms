@@ -17,13 +17,13 @@ import {UsersModule} from "./modules/users/users.module.js";
 
 @Module({
     imports: [
-        SecurityModule,
+        PrismaModule,
         RedisModule,
+        SecurityModule,
         AuditModule,
         AuthModule,
         UsersModule,
         EmailModule,
-        PrismaModule,
         BullModule.forRoot({
             connection: {
                 host: process.env.REDIS_HOST || '127.0.0.1',
