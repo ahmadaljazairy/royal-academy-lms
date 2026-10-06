@@ -15,8 +15,10 @@ import {
 export class SessionCacheRepository {
     constructor(private readonly redis: RedisService) {}
 
+    /**
+     * Retrieves an active user session by session ID.
+     */
     async getSession(sessionId: string): Promise<UserSession | null> {
         return this.redis.get(SESSION_CACHE_CONTRACTS.session, sessionId);
     }
-
 }

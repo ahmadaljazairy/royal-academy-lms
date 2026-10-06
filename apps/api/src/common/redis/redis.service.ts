@@ -4,11 +4,12 @@
  * @description Low-level Redis abstraction executing contract operations,
  * legacy string operations, and lifecycle termination.
  *
- * Security & Reliability Highlights:
- * 1. Prototype Pollution Defense: Strips `__proto__` and constructor tampering on parse.
- * 2. Non-Crashing Serialization: Traps JSON parse exceptions, auto-evicting corrupted keys.
- * 3. Graceful Termination: `onApplicationShutdown` ensures buffered pipeline commands
- *    flush before closing sockets on SIGTERM.
+ * Features:
+ * 1. Contract-Driven Key Generation with automatic namespace and versioning.
+ * 2. Explicit `setWithTtl` for dynamic TTL overrides (e.g. rememberMe).
+ * 3. Prototype Pollution Defense: Strips `__proto__` and constructor tampering.
+ * 4. Non-Crashing Serialization: Traps JSON parse exceptions and evicts corrupt keys.
+ * 5. Full Backward Compatibility with raw string operations and lifecycle hooks.
  */
 
 import {
@@ -29,7 +30,7 @@ export class RedisService implements OnApplicationShutdown {
 
     /**
      * Access the underlying ioredis client.
-     * Preferred accessor over legacy `getClient()`.
+     * Preferred accessor to legacy `getClient()`.
      */
     get raw(): Redis {
         return this.client;
@@ -89,7 +90,6 @@ export class RedisService implements OnApplicationShutdown {
                 `Failed to deserialize payload for key "${key}". Purging invalid cache entry.`,
                 error instanceof Error ? error.stack : undefined,
             );
-            // Evict malformed data so it cannot poison subsequent reads
             await this.client.del(key);
             return null;
         }
@@ -139,6 +139,26 @@ export class RedisService implements OnApplicationShutdown {
         }
 
         await this.client.set(key, serialized);
+    }
+
+    /**
+     * Explicit Dynamic TTL Set: Serializes payload and overrides the contract TTL.
+     * Solves parameter ambiguity when applying dynamic TTLs (e.g., rememberMe).
+     */
+    async setWithTtl<TArgs extends unknown[], TPayload>(
+        contract: RedisContract<TArgs, TPayload>,
+        payload: TPayload,
+        ttlSeconds: number,
+        ...args: TArgs
+    ): Promise<void> {
+        const key = contract.key(...args);
+        const serialized = JSON.stringify(payload);
+
+        if (ttlSeconds > 0) {
+            await this.client.set(key, serialized, 'EX', ttlSeconds);
+        } else {
+            await this.client.set(key, serialized);
+        }
     }
 
     // ===========================================================================

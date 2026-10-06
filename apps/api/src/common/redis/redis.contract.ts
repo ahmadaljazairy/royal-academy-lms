@@ -1,30 +1,64 @@
 /**
  * @file Redis Contract Definition & Guard Utilities
  * @module @template/api/common/redis/redis.contract
- * @description Provides a pure TypeScript contract schema to bind key construction,
- * arguments, payload types, and TTLs at compile time without runtime schema dependencies.
+ * @description Provides a strongly-typed contract schema that handles versioning,
+ * namespace prefixing, segment sanitization, and phantom type tracking.
  */
+
+export interface RedisContractOptions<TArgs extends unknown[], TPayload> {
+    /** Domain namespace prefix (e.g., 'auth:session', 'rl:window') */
+    readonly namespace: string;
+
+    /** Schema version tag for automatic cache isolation (defaults to 1) */
+    readonly version?: number;
+
+    /** Default TTL in seconds */
+    readonly ttl: number;
+
+    /** Dynamic key segment generator (returns parameter segment) */
+    readonly key: (...args: TArgs) => string;
+}
 
 export interface RedisContract<TArgs extends unknown[], TPayload> {
     readonly namespace: string;
-    readonly ttl: number; // TTL in seconds
+    readonly version: number;
+    readonly ttl: number;
+    /** Generates fully qualified, versioned, and normalized Redis key string */
     key(...args: TArgs): string;
-    /**
-     * Phantom type marker. Retains TPayload at compile time for inference
-     * without runtime memory overhead.
-     */
+    /** Phantom type marker for compile-time payload inference */
     readonly _payloadType?: TPayload;
 }
 
 /**
- * Type-safe contract builder ensuring strict generic inference.
+ * Sanitizes raw key parameters (e.g. URI paths `/api/v1/auth/login` -> `api:v1:auth:login`)
+ * to maintain clean, hierarchical colon separators inside Redis.
  */
-export function defineRedisContract<TArgs extends unknown[], TPayload>(definition: {
-    namespace: string;
-    ttl: number;
-    key: (...args: TArgs) => string;
-}): RedisContract<TArgs, TPayload> {
-    return definition;
+export function sanitizeKeySegment(segment: string): string {
+    return segment
+        .replace(/^\/+|\/+$/g, '')
+        .replace(/[\/\s]+/g, ':')
+        .toLowerCase();
+}
+
+/**
+ * Type-safe contract builder ensuring strict generic inference, automatic versioning,
+ * and namespace prefixing (`<namespace>:v<version>:<segment>`).
+ */
+export function defineRedisContract<TArgs extends unknown[], TPayload>(
+    options: RedisContractOptions<TArgs, TPayload>,
+): RedisContract<TArgs, TPayload> {
+    const version = options.version ?? 1;
+    const prefix = `${options.namespace}:v${version}`;
+
+    return {
+        namespace: options.namespace,
+        version,
+        ttl: options.ttl,
+        key: (...args: TArgs) => {
+            const segment = options.key(...args);
+            return segment ? `${prefix}:${segment}` : prefix;
+        },
+    };
 }
 
 /**
