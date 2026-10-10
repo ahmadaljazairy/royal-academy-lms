@@ -43,7 +43,6 @@ import type {
 // -----------------------------------------------------------------------------
 import { Public } from '../../common/decorators/public.decorator.js';
 import { RateLimit } from '../../common/decorators/rate-limit.decorator.js';
-import { RateLimitGuard } from '../../common/guards/rate-limit.guard.js';
 import { ResponseMessage } from '../../common/decorators/response.decorators.js';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
 
@@ -68,6 +67,7 @@ import {
     ConfirmAvatarEnvelopeDto,
     ChangePasswordEnvelopeDto,
 } from './dto/index.js';
+import {RateLimitGuard} from "../../common/guards/index.js";
 
 /**
  * Controller managing private account profiles, public profile lookups,
@@ -164,8 +164,8 @@ export class UsersController {
     @Post('me/avatar/upload-url')
     @HttpCode(HttpStatus.OK)
     @ApiCookieAuth('session-cookie')
-    @UseGuards(RateLimitGuard)
-    @RateLimit({ limit: 5, ttlSeconds: 60, keyPrefix: 'rl:avatar-upload' })
+    // @UseGuards(RateLimitGuard)
+    // @RateLimit({ limit: 5, ttlSeconds: 60, keyPrefix: 'rl:avatar-upload' })
     @ResponseMessage('Avatar upload ticket generated successfully')
     @ApiOperation({
         summary: 'Request presigned POST upload policy for avatar',
@@ -256,8 +256,8 @@ export class UsersController {
     @Post('me/change-password')
     @HttpCode(HttpStatus.OK)
     @ApiCookieAuth('session-cookie')
-    @UseGuards(RateLimitGuard)
-    @RateLimit({ limit: 5, ttlSeconds: 60, keyPrefix: 'rl:change-pw' })
+    // @UseGuards(RateLimitGuard)
+    // @RateLimit({ limit: 5, ttlSeconds: 60, keyPrefix: 'rl:change-pw' })
     @ResponseMessage('Password changed successfully. Other sessions revoked.')
     @ApiOperation({
         summary: 'Change password and revoke other active sessions',

@@ -14,6 +14,7 @@ import {BullModule} from "@nestjs/bullmq";
 import {EmailModule} from "./common/email/email.module.js";
 import {StorageModule} from "./common/storage/index.js";
 import {UsersModule} from "./modules/users/users.module.js";
+import {RateLimitGuardModule} from "./common/guards/rate-limit-guard/rate-limit.module.js";
 
 @Module({
     imports: [
@@ -21,6 +22,7 @@ import {UsersModule} from "./modules/users/users.module.js";
         RedisModule,
         SecurityModule,
         AuditModule,
+        RateLimitGuardModule,
         AuthModule,
         UsersModule,
         EmailModule,

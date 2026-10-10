@@ -3,7 +3,7 @@ import { AuthService } from './auth.service.js';
 import { SecurityModule } from '../../common/security/security.module.js';
 import { AuthController } from './auth.controller.js';
 import { SessionAuthGuard } from './guards/session-auth.guard.js';
-import { RateLimitGuard } from '../../common/guards/rate-limit.guard.js';
+import {RateLimitGuard} from "../../common/guards/index.js";
 import { AuthTokenManager } from './auth-token.manager.js';
 import {SessionCacheRepository} from "./cache/session-cache.repository.js";
 

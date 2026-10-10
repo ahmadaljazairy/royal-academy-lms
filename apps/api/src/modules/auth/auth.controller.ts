@@ -39,7 +39,6 @@ import type {
 import { Public } from '../../common/decorators/public.decorator.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { RateLimit } from '../../common/decorators/rate-limit.decorator.js';
-import { RateLimitGuard } from '../../common/guards/rate-limit.guard.js';
 import { ResponseMessage } from '../../common/decorators/response.decorators.js';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
 
@@ -58,7 +57,10 @@ import {
     AuthResponseEnvelopeDto,
     SessionResponseEnvelopeDto,
     LogoutResponseEnvelopeDto, VerifyEmailDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto,
+    UserProfileDto,
 } from './dto/index.js';
+import {RateLimitGuard} from "../../common/guards/index.js";
+import {ApiDoc} from "../../common/decorators/api-doc.decorator.js";
 
 /**
  * Controller handling user registration, authentication, stateful session
@@ -80,45 +82,38 @@ export class AuthController {
     /**
      * Register a new user account.
      *
-     * Rate-limited to 3 requests per 60s per IP to mitigate automated account
+     * Rate-limited to 3 requests per 60s per IP / target email to mitigate automated account
      * creation attacks and storage exhaustion.
      */
     @Post('register')
-    @HttpCode(HttpStatus.CREATED)
     @Public()
     @UseGuards(RateLimitGuard)
-    @RateLimit({ limit: 3, ttlSeconds: 60, keyPrefix: 'rl:register' })
-    @ResponseMessage('Account registered successfully')
-    @ApiOperation({
+    @RateLimit({
+        limit: 3,
+        ttlSeconds: 60,
+        keyPrefix: 'auth:register',
+        keyResolver: (req) => req.body?.email,
+    })
+    @ApiDoc({
         summary: 'Register a new user account',
-        description:
-            'Hashes password with Argon2id and creates an unverified account. Rate-limited to 3 requests per 60 seconds.',
-    })
-    @ApiBody({ type: RegisterDto })
-    @ApiResponse({
         status: HttpStatus.CREATED,
-        description: 'User successfully created.',
-        type: AuthResponseEnvelopeDto,
-    })
-    @ApiBadRequestResponse({
-        description: 'Validation failed (e.g., malformed email or short password).',
-        type: ApiErrorResponseDto,
-    })
-    @ApiConflictResponse({
-        description: 'Email is already registered in the system.',
-        type: ApiErrorResponseDto,
-    })
-    @ApiTooManyRequestsResponse({
-        description: 'Rate limit exceeded (sliding window counter triggered).',
-        type: ApiErrorResponseDto,
+        message: 'Account registered successfully',
+        type: UserProfileDto,
+        errors: [
+            HttpStatus.BAD_REQUEST,
+            HttpStatus.CONFLICT,
+            HttpStatus.TOO_MANY_REQUESTS,
+        ],
     })
     async register(
         @Body() dto: RegisterDto,
         @Ip() ipAddress: string,
         @Headers('user-agent') userAgent: string | undefined,
     ): Promise<AuthUserResponse> {
-        return this.authService.register(dto, {ipAddress, userAgent});
+        return this.authService.register(dto, { ipAddress, userAgent });
     }
+
+
 
     /**
      * Authenticate user credentials and issue an HttpOnly stateful session cookie.
@@ -132,8 +127,8 @@ export class AuthController {
     @Post('login')
     @HttpCode(HttpStatus.OK)
     @Public()
-    @UseGuards(RateLimitGuard)
-    @RateLimit({ limit: 5, ttlSeconds: 60, keyPrefix: 'rl:login', trackEmail: true })
+    // @UseGuards(RateLimitGuard)
+    // @RateLimit({ limit: 5, ttlSeconds: 60, keyPrefix: 'rl:login', trackEmail: true })
     @ResponseMessage('Login successful')
     @ApiOperation({
         summary: 'Authenticate credentials and issue stateful session cookie',
@@ -347,8 +342,8 @@ export class AuthController {
     @Public()
     @Post('resend-verification')
     @HttpCode(HttpStatus.OK)
-    @UseGuards(RateLimitGuard)
-    @RateLimit({ limit: 3, ttlSeconds: 900, keyPrefix: 'rl:resend-verif', trackEmail: true })
+    // @UseGuards(RateLimitGuard)
+    // @RateLimit({ limit: 3, ttlSeconds: 900, keyPrefix: 'rl:resend-verif', trackEmail: true })
     @ResponseMessage('If the email is registered and unverified, a verification link has been sent.')
     @ApiOperation({
         summary: 'Resend verification link (Rate-limited, anti-enumeration safe)',
@@ -389,8 +384,8 @@ export class AuthController {
     @Public()
     @Post('forgot-password')
     @HttpCode(HttpStatus.OK)
-    @UseGuards(RateLimitGuard)
-    @RateLimit({ limit: 5, ttlSeconds: 900, keyPrefix: 'rl:forgot-pw', trackEmail: false })
+    // @UseGuards(RateLimitGuard)
+    // @RateLimit({ limit: 5, ttlSeconds: 900, keyPrefix: 'rl:forgot-pw', trackEmail: false })
     @ResponseMessage('If an account exists with this email, a reset link has been sent.')
     @ApiOperation({
         summary: 'Request password reset link',
