@@ -1,30 +1,13 @@
+/**
+ * @file Audit Log Service
+ * @module @template/api/common/audit/audit-log.service
+ * @description Persists immutable security audit records to PostgreSQL with fail-safe error isolation.
+ */
+
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service.js';
 import { Prisma } from '@template/database';
-
-
-export const SecurityAuditEvent = {
-    AUTH_REGISTER: 'AUTH_REGISTER',
-    AUTH_VERIFY_EMAIL_REQUESTED: 'AUTH_VERIFY_EMAIL_REQUESTED',
-    AUTH_VERIFY_EMAIL_COMPLETED: 'AUTH_VERIFY_EMAIL_COMPLETED',
-    AUTH_PASSWORD_RESET_REQUESTED: 'AUTH_PASSWORD_RESET_REQUESTED',
-    AUTH_PASSWORD_RESET_COMPLETED: 'AUTH_PASSWORD_RESET_COMPLETED',
-    AUTH_ALL_SESSIONS_REVOKED: 'AUTH_ALL_SESSIONS_REVOKED',
-    /** Revokes all sessions except current active session
-     * */
-    AUTH_PASSWORD_CHANGED: 'AUTH_PASSWORD_CHANGED'
-} as const;
-
-export type SecurityAuditEventType =
-    (typeof SecurityAuditEvent)[keyof typeof SecurityAuditEvent];
-
-export interface RecordAuditLogParams {
-    userId?: string | null;
-    event: SecurityAuditEventType | string;
-    ipAddress?: string | null;
-    userAgent?: string | null;
-    metadata?: Prisma.InputJsonValue;
-}
+import { PrismaService } from '../prisma/prisma.service.js';
+import type { RecordAuditLogParams } from './audit.constants.js';
 
 @Injectable()
 export class AuditLogService {
@@ -33,8 +16,10 @@ export class AuditLogService {
     constructor(private readonly prisma: PrismaService) {}
 
     /**
-     * Appends an immutable audit log record to PostgreSQL.
-     * Fails gracefully without breaking user request flows.
+     * Appends an immutable security audit log record to PostgreSQL.
+     *
+     * @description Fail-safe execution: Catches and logs database write errors to prevent
+     * auditing failures from crashing primary user HTTP request pipelines.
      */
     async record(params: RecordAuditLogParams): Promise<void> {
         try {
@@ -48,6 +33,7 @@ export class AuditLogService {
                 },
             });
         } catch (error) {
+            // Fail-safe isolation: Log error and preserve main request transaction
             this.logger.error(
                 `Failed to persist audit log event [${params.event}] for user [${params.userId ?? 'anonymous'}]`,
                 error instanceof Error ? error.stack : error,
