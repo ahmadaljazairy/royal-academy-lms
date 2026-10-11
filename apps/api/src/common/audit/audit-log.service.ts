@@ -1,11 +1,11 @@
 /**
  * @file Audit Log Service
- * @module @template/api/common/audit/audit-log.service
+ * @module @royal-academy/api/common/audit/audit-log.service
  * @description Persists immutable security audit records to PostgreSQL with fail-safe error isolation.
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma } from '@template/database';
+import { Prisma } from '@royal-academy/database';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { RecordAuditLogParams } from './audit.constants.js';
 

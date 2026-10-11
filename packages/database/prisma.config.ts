@@ -1,7 +1,9 @@
 import { defineConfig } from "@prisma/config";
+import * as path from "node:path";
 
 try {
-    process.loadEnvFile("./.env");
+    const envPath = path.resolve(__dirname , "./.env");
+    process.loadEnvFile(envPath);
 } catch (error) {
     console.warn("⚠️ Could not load local .env file", error);
 }

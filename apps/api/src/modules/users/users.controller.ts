@@ -10,7 +10,7 @@ import {
     Headers,
     HttpCode,
     HttpStatus,
-    UseGuards,
+    // UseGuards,
     UnauthorizedException,
 } from '@nestjs/common';
 import {
@@ -36,13 +36,13 @@ import type {
     PresignedPostUploadResponse,
     ConfirmAvatarUploadResponse,
     ChangePasswordResponse,
-} from '@template/types';
+} from '@royal-academy/types';
 
 // -----------------------------------------------------------------------------
 // Cross-Cutting Common Utilities (Guards, Decorators, DTOs)
 // -----------------------------------------------------------------------------
 import { Public } from '../../common/decorators/public.decorator.js';
-import { RateLimit } from '../../common/decorators/rate-limit.decorator.js';
+// import { RateLimit } from '../../common/decorators/rate-limit.decorator.js';
 import { ResponseMessage } from '../../common/decorators/response.decorators.js';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
 
@@ -67,7 +67,7 @@ import {
     ConfirmAvatarEnvelopeDto,
     ChangePasswordEnvelopeDto,
 } from './dto/index.js';
-import {RateLimitGuard} from "../../common/guards/index.js";
+// import {RateLimitGuard} from "../../common/guards/index.js";
 
 /**
  * Controller managing private account profiles, public profile lookups,

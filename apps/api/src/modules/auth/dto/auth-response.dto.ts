@@ -5,7 +5,7 @@ import type {
     LogoutResult,
     ApiSuccessResponse,
     Role,
-} from '@template/types';
+} from '@royal-academy/types';
 
 export class UserProfileDto implements UserProfile {
     @ApiProperty({ example: 'usr_cm1349f82000008l07b60g5d7' })

@@ -1,6 +1,6 @@
 /**
  * @file Rate Limiting Route Decorator
- * @module @template/api/common/guards/rate-limit/rate-limit.decorator
+ * @module @royal-academy/api/common/guards/rate-limit/rate-limit.decorator
  * @description Attaches sliding-window rate limiting configuration metadata to controllers or handlers.
  */
 

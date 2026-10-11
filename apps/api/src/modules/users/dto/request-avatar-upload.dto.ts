@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import type {RequestAvatarUploadRequest} from "@template/types";
+import type {RequestAvatarUploadRequest} from "@royal-academy/types";
 
 export class RequestAvatarUploadDto implements RequestAvatarUploadRequest{
     @ApiProperty({ example: 'image/png' })

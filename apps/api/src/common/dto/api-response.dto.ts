@@ -1,12 +1,12 @@
 /**
  * @file OpenAPI Response Envelopes
- * @module @template/api/common/dto/api-response
+ * @module @royal-academy/api/common/dto/api-response
  * @description Concrete Swagger DTO classes implementing shared monorepo contracts.
  * Used by `@ApiDoc()` to compose dynamic success schemas and document standardized error responses.
  */
 
 import { ApiProperty } from '@nestjs/swagger';
-import type { ApiSuccessResponse, ApiErrorResponse } from '@template/types';
+import type { ApiSuccessResponse, ApiErrorResponse } from '@royal-academy/types';
 
 /**
  * Base success envelope matching `TransformResponseInterceptor`.

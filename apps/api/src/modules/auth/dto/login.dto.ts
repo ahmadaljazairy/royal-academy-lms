@@ -1,6 +1,6 @@
 import {IsBoolean, IsEmail, IsNotEmpty, IsOptional, IsString} from 'class-validator';
 import {ApiProperty, ApiPropertyOptional} from '@nestjs/swagger';
-import type { LoginInput } from '@template/types';
+import type { LoginInput } from '@royal-academy/types';
 
 export class LoginDto implements LoginInput {
     @ApiProperty({

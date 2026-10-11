@@ -1,4 +1,4 @@
-import type { StorageScope } from '@template/types';
+import type { StorageScope } from '@royal-academy/types';
 
 export interface StorageScopeSpec {
     isPublic: boolean;

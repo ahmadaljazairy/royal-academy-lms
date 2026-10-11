@@ -1,6 +1,6 @@
 /**
  * @file Global Response Transformation Interceptor
- * @module @template/api/common/interceptors/transform-response.interceptor
+ * @module @royal-academy/api/common/interceptors/transform-response.interceptor
  * @description Intercepts successful controller returns and constructs standardized
  * `ApiSuccessResponse<T>` or `ApiPaginatedResponse<T>` wire envelopes.
  */
@@ -20,7 +20,7 @@ import type { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 
 // Shared Monorepo Envelopes
-import type { ApiSuccessResponse } from '@template/types';
+import type { ApiSuccessResponse } from '@royal-academy/types';
 
 // Custom Decorator Metadata Keys
 import {

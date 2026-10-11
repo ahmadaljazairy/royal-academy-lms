@@ -1,7 +1,7 @@
 // apps/api/src/auth/dto/register.dto.ts
 import {IsEmail, IsNotEmpty, IsString, MinLength, MaxLength, IsBoolean, Equals} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import type { RegisterInput } from '@template/types';
+import type { RegisterInput } from '@royal-academy/types';
 
 export class RegisterDto implements RegisterInput {
     @ApiProperty({

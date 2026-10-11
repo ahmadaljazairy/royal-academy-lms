@@ -1,6 +1,6 @@
 /**
  * @file Rate Limit Guard Module
- * @module @template/api/common/guards/rate-limit-guard/rate-limit.module
+ * @module @royal-academy/api/common/guards/rate-limit-guard/rate-limit.module
  */
 
 import { Global, Module } from '@nestjs/common';

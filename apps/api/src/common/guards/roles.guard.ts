@@ -1,6 +1,6 @@
 /**
  * @file Roles Authorization Guard
- * @module @template/api/common/guards/roles
+ * @module @royal-academy/api/common/guards/roles
  * @description Enforces Role-Based Access Control (RBAC) across controllers and route handlers
  * based on role metadata attached via `@Roles()`.
  */
@@ -13,7 +13,7 @@ import {
     UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { Role } from '@template/types';
+import type { Role } from '@royal-academy/types';
 
 import { ROLES_KEY } from '../decorators/roles.decorator.js';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';

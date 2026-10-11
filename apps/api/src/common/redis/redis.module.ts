@@ -1,6 +1,6 @@
 /**
  * @file Global Redis Provider Module
- * @module @template/api/common/redis/redis.module
+ * @module @royal-academy/api/common/redis/redis.module
  * @description Configures and bootstraps the persistent `ioredis` client pool.
  *
  * Production Hardening:

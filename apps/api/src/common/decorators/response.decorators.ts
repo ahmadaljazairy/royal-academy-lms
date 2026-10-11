@@ -1,6 +1,6 @@
 /**
  * @file Response Transformation Decorators
- * @module @template/api/common/decorators/response
+ * @module @royal-academy/api/common/decorators/response
  * @description Custom route and controller metadata decorators consumed by
  * `TransformResponseInterceptor` to customize or bypass outgoing HTTP wire envelopes.
  */

@@ -1,6 +1,6 @@
 import { IsString, MinLength, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import type {ChangePasswordRequest} from "@template/types";
+import type {ChangePasswordRequest} from "@royal-academy/types";
 
 export class ChangePasswordDto implements ChangePasswordRequest{
     @ApiProperty({ example: 'CurrentPassword2026!' })

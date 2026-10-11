@@ -1,7 +1,7 @@
 /**
  * @file Database Provider & NestJS Lifecycle Bridge
- * @module @template/api/common/prisma/prisma.service
- * @description Bridges the framework-agnostic Prisma engine from `@template/database`
+ * @module @royal-academy/api/common/prisma/prisma.service
+ * @description Bridges the framework-agnostic Prisma engine from `@royal-academy/database`
  * into the NestJS Dependency Injection container.
  *
  * Architecture Highlights:
@@ -26,7 +26,7 @@ import {
 import {
     PrismaClient,
     createPrismaClientOptions,
-} from '@template/database';
+} from '@royal-academy/database';
 
 @Injectable()
 export class PrismaService

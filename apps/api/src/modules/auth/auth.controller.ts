@@ -17,7 +17,6 @@ import {
     ApiBody,
     ApiCookieAuth,
     ApiBadRequestResponse,
-    ApiConflictResponse,
     ApiUnauthorizedResponse,
     ApiForbiddenResponse,
     ApiTooManyRequestsResponse,
@@ -31,7 +30,7 @@ import type {
     AuthUserResponse,
     UserSession,
     LogoutResult,
-} from '@template/types';
+} from '@royal-academy/types';
 
 // -----------------------------------------------------------------------------
 // Cross-Cutting Common Utilities (Guards, Decorators, DTOs)
@@ -45,7 +44,7 @@ import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
 // -----------------------------------------------------------------------------
 // Auth Domain Module Imports
 // -----------------------------------------------------------------------------
-import { AuthService } from './auth.service.js';
+import { AuthService } from './services/auth.service.js';
 import { CurrentUser } from './decorators/current-user.decorator.js';
 import {
     SESSION_COOKIE_NAME,

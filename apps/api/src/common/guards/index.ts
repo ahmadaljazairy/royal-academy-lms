@@ -1,6 +1,6 @@
 /**
  * @file Common Guards Barrel Export
- * @module @template/api/common/guards
+ * @module @royal-academy/api/common/guards
  */
 
 export * from './rate-limit-guard/index.js';

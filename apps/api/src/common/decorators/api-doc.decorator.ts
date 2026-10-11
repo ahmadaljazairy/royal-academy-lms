@@ -1,6 +1,6 @@
 /**
  * @file OpenAPI Schema Composition & Documentation Decorator
- * @module @template/api/common/decorators/api-doc
+ * @module @royal-academy/api/common/decorators/api-doc
  * @description Composite decorator unifying Swagger documentation, OpenAPI `allOf` schema composition,
  * HTTP wire status code assignment (`@HttpCode`), and runtime response message injection (`@ResponseMessage`).
  */
@@ -82,7 +82,7 @@ const DEFAULT_ERROR_DESCRIPTIONS: Record<SupportedErrorCode, string> = {
 /**
  * Configuration options for the `@ApiDoc()` composite decorator.
  *
- * @template TModel - The inner DTO class represented within `data`.
+ * @royal-academy TModel - The inner DTO class represented within `data`.
  */
 export interface ApiDocOptions<TModel extends Type<unknown>> {
     /** Brief operation summary displayed in Swagger UI */

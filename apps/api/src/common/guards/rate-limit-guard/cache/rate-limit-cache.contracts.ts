@@ -1,6 +1,6 @@
 /**
  * @file Rate Limiting Cache Contracts
- * @module @template/api/common/guards/rate-limit/rate-limit-cache.contracts
+ * @module @royal-academy/api/common/guards/rate-limit/rate-limit-cache.contracts
  */
 
 import {

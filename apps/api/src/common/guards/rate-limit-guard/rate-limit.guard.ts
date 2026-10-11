@@ -1,6 +1,6 @@
 /**
  * @file Dual-Bucket Sliding-Window Rate Limit Guard
- * @module @template/api/common/guards/rate-limit/rate-limit.guard
+ * @module @royal-academy/api/common/guards/rate-limit/rate-limit.guard
  */
 
 import {

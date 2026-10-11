@@ -1,4 +1,4 @@
-import { nodeConfig } from "@template/eslint-config/node";
+import { nodeConfig } from "@royal-academy/eslint-config/node";
 
 export default [
     ...nodeConfig,

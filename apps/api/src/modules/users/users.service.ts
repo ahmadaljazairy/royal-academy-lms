@@ -6,6 +6,7 @@ import {
     UnauthorizedException,
     Logger,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { StorageService } from '../../common/storage/index.js';
@@ -13,14 +14,14 @@ import type {
     UserProfileResponse,
     PublicProfileResponse,
     PresignedPostUploadResponse,
-} from '@template/types';
+} from '@royal-academy/types';
 import type {
     UpdateProfileDto,
     RequestAvatarUploadDto,
     ConfirmAvatarUploadDto,
     ChangePasswordDto,
 } from './dto/index.js';
-import {SessionService} from "../../common/security/session.service.js";
+import { UserPasswordChangedEvent } from '../auth/listeners/auth-event.listener.js';
 
 @Injectable()
 export class UsersService {
@@ -29,7 +30,7 @@ export class UsersService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly storageService: StorageService,
-        private readonly sessionService: SessionService,
+        private readonly eventEmitter: EventEmitter2,
     ) {}
 
     async getMeProfile(userId: string): Promise<UserProfileResponse> {
@@ -212,11 +213,10 @@ export class UsersService {
             data: { passwordHash: newHash },
         });
 
-        // Uses SessionService to revoke other sessions and append to the audit trail
-        await this.sessionService.destroyOtherUserSessions(
-            userId,
-            currentSessionId,
-            metadata,
+        // Decoupled: Emit domain event to allow AuthEventListener to revoke other sessions asynchronously
+        this.eventEmitter.emit(
+            'user.password-changed',
+            new UserPasswordChangedEvent(userId, currentSessionId, metadata),
         );
 
         return {

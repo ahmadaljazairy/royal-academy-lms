@@ -6,7 +6,7 @@ import {
     Matches,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import type {UpdateProfileRequest} from "@template/types";
+import type {UpdateProfileRequest} from "@royal-academy/types";
 
 export class UpdateProfileDto implements UpdateProfileRequest{
     @ApiPropertyOptional({ example: 'Alex Morgan', maxLength: 100 })

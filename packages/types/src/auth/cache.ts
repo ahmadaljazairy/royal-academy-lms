@@ -1,6 +1,6 @@
 /**
  * @file Auth Cache Payloads & Redis Contracts
- * @module @template/types/auth/cache
+ * @module @royal-academy/types/auth/cache
  * @description Serialized data structures stored in Redis keys across authentication workflows.
  */
 
@@ -25,4 +25,7 @@ export interface UserSession {
 
     /** Cached verification status to quickly guard email-restricted routes. */
     isEmailVerified: boolean;
+
+    /** Indicates whether the session uses extended "Remember Me" TTL lifetime. */
+    rememberMe?: boolean;
 }

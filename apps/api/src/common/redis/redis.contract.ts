@@ -1,11 +1,11 @@
 /**
  * @file Redis Contract Definition & Guard Utilities
- * @module @template/api/common/redis/redis.contract
+ * @module @royal-academy/api/common/redis/redis.contract
  * @description Provides a strongly-typed contract schema that handles versioning,
  * namespace prefixing, segment sanitization, and phantom type tracking.
  */
 
-export interface RedisContractOptions<TArgs extends unknown[], TPayload> {
+export interface RedisContractOptions<TArgs extends unknown[]> {
     /** Domain namespace prefix (e.g., 'auth:session', 'rl:window') */
     readonly namespace: string;
 
@@ -36,7 +36,7 @@ export interface RedisContract<TArgs extends unknown[], TPayload> {
 export function sanitizeKeySegment(segment: string): string {
     return segment
         .replace(/^\/+|\/+$/g, '')
-        .replace(/[\/\s]+/g, ':')
+        .replace(/[/\s]+/g, ':')
         .toLowerCase();
 }
 
@@ -45,7 +45,7 @@ export function sanitizeKeySegment(segment: string): string {
  * and namespace prefixing (`<namespace>:v<version>:<segment>`).
  */
 export function defineRedisContract<TArgs extends unknown[], TPayload>(
-    options: RedisContractOptions<TArgs, TPayload>,
+    options: RedisContractOptions<TArgs>,
 ): RedisContract<TArgs, TPayload> {
     const version = options.version ?? 1;
     const prefix = `${options.namespace}:v${version}`;

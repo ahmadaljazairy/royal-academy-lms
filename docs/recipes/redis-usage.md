@@ -2,7 +2,7 @@
 
 ## Architectural Rules
 
-1. **Never call `RedisService` directly in feature services or controllers:** All cache operations must be encapsulated inside a **Domain Cache Repository** (e.g., `SessionCacheRepository`).
+1. **Never call `RedisService` directly in feature services or controllers:** All cache operations must be encapsulated inside a **Domain Cache Repository** (e.g., `AuthCacheRepository`).
 
 2. **Never hardcode raw string keys (`"user_" + id`):** Every key pattern, parameter, payload shape, and default TTL must be defined using `defineRedisContract()`.
 

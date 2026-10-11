@@ -1,10 +1,10 @@
 /**
  * @file Authenticated Express Request Interface
- * @module @template/api/common/interfaces/authenticated-request
+ * @module @royal-academy/api/common/interfaces/authenticated-request
  */
 
 import type { Request } from 'express';
-import type { UserSession } from '@template/types';
+import type { UserSession } from '@royal-academy/types';
 
 /**
  * Express Request decorated by `SessionAuthGuard` with a validated Redis session payload.

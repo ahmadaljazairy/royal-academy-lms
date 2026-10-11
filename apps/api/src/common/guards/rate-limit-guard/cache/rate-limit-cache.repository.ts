@@ -1,6 +1,6 @@
 /**
  * @file Rate Limit Cache Repository
- * @module @template/api/common/guards/rate-limit/rate-limit-cache.repository
+ * @module @royal-academy/api/common/guards/rate-limit/rate-limit-cache.repository
  */
 
 import { Injectable, Logger } from '@nestjs/common';

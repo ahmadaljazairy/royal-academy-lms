@@ -24,7 +24,7 @@ import type {
     PresignedPostUploadResponse,
     PresignedDownloadResponse,
     VerifiedStorageObject,
-} from '@template/types';
+} from '@royal-academy/types';
 import { STORAGE_SCOPES, type StorageScopeSpec } from './storage.config.js';
 
 @Injectable()

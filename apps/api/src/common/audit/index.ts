@@ -1,6 +1,6 @@
 /**
  * @file Common Audit Module Barrel Export
- * @module @template/api/common/audit
+ * @module @royal-academy/api/common/audit
  */
 
 export * from './audit.constants.js';

@@ -1,6 +1,6 @@
 /**
  * @file Global Exception Handling Filter
- * @module @template/api/common/filters/all-exceptions.filter
+ * @module @royal-academy/api/common/filters/all-exceptions.filter
  * @description Catches all unhandled HTTP exceptions, ORM/database constraints,
  * and system errors across the application, transforming them into a unified flat
  * error envelope: `ApiErrorResponse`.
@@ -26,7 +26,7 @@ import type { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 
 // Shared Monorepo Contracts
-import type {ApiErrorResponse, UserSession} from '@template/types';
+import type {ApiErrorResponse, UserSession} from '@royal-academy/types';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {

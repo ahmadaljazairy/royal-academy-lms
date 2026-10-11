@@ -5,7 +5,7 @@ import type {
     PresignedPostUploadResponse,
     ConfirmAvatarUploadResponse,
     ChangePasswordResponse, ApiSuccessResponse,
-} from '@template/types';
+} from '@royal-academy/types';
 
 export class UserProfileDataDto implements UserProfileResponse {
     @ApiProperty({ example: 'usr_cm1349f82000008l07b60g5d7' })

@@ -1,5 +1,5 @@
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
-import type { UserSession } from '@template/types';
+import type { UserSession } from '@royal-academy/types';
 import type {AuthenticatedRequest} from "../../../common/interfaces/index.js";
 
 export const CurrentUser = createParamDecorator(

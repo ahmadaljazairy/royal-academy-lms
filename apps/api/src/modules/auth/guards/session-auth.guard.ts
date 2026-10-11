@@ -1,6 +1,6 @@
 /**
  * @file Stateful Session Authentication Guard
- * @module @template/api/modules/auth/guards/session-auth
+ * @module @royal-academy/api/modules/auth/guards/session-auth
  * @description Authenticates incoming HTTP requests by validating stateful session IDs
  * against Redis via `SessionCacheRepository`.
  */
@@ -17,13 +17,13 @@ import type { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../../../common/decorators/public.decorator.js';
 import type { AuthenticatedRequest } from '../../../common/interfaces/index.js';
 import { SESSION_COOKIE_NAME } from '../auth.constants.js';
-import {SessionCacheRepository} from "../cache/session-cache.repository.js";
+import {AuthCacheRepository} from "../cache/auth-cache.repository.js";
 
 @Injectable()
 export class SessionAuthGuard implements CanActivate {
     constructor(
         private readonly reflector: Reflector,
-        private readonly sessionCache: SessionCacheRepository,
+        private readonly sessionCache: AuthCacheRepository,
     ) {}
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -56,7 +56,6 @@ export class SessionAuthGuard implements CanActivate {
         // 3. Fetch Session Payload from Redis via SessionCacheRepository
         // -------------------------------------------------------------------------
         const session = await this.sessionCache.getSession(sessionId);
-        console.log('----------' + session)
 
         if (!session) {
             throw new UnauthorizedException(

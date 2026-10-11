@@ -1,6 +1,6 @@
 /**
  * @file Core Redis Service
- * @module @template/api/common/redis/redis.service
+ * @module @royal-academy/api/common/redis/redis.service
  * @description Low-level Redis abstraction executing contract operations,
  * legacy string operations, and lifecycle termination.
  *
