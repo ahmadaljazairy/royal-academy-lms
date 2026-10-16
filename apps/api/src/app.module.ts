@@ -5,13 +5,13 @@ import {TransformResponseInterceptor} from "./common/interceptors/transform-resp
 import {AllExceptionsFilter} from "./common/filters/all-exceptions.filter.js";
 import {AuthModule} from "./modules/auth/auth.module.js";
 import {SessionAuthGuard} from "./modules/auth/guards/session-auth.guard.js";
-import {RolesGuard} from "./common/guards/roles.guard.js";
+import {RolesGuard} from "./common/guards/index.js";
 import {PrismaModule} from "./common/prisma/prisma.module.js";
-import {AuditModule} from "./common/audit/audit.module.js";
+import {AuditModule} from "./common/audit/index.js";
 import {RedisModule} from "./common/redis/redis.module.js";
 import {SecurityModule} from "./common/security/security.module.js";
 import {BullModule} from "@nestjs/bullmq";
-import {EmailModule} from "./common/email/email.module.js";
+import {EmailModule} from "./common/email/index.js";
 import {StorageModule} from "./common/storage/index.js";
 import {UsersModule} from "./modules/users/users.module.js";
 import {RateLimitGuardModule} from "./common/guards/rate-limit-guard/rate-limit.module.js";
