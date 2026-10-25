@@ -1,6 +1,6 @@
 /**
  * @file Storage Response Contracts
- * @module @template/types/storage/responses
+ * @module @royal-academy/types/storage/responses
  */
 
 /**

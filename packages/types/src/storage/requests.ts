@@ -1,6 +1,6 @@
 /**
  * @file Storage Request Contracts
- * @module @template/types/storage/requests
+ * @module @royal-academy/types/storage/requests
  */
 
 import type { StorageScope } from './models.js';

@@ -1,6 +1,6 @@
 /**
  * @file Storage Domain Public Surface
- * @module @template/types/storage
+ * @module @royal-academy/types/storage
  */
 
 export * from './models.js';

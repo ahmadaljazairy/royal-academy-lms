@@ -1,31 +1,42 @@
+/**
+ * @file Object Storage Management Service
+ * @module @royal-academy/api/common/storage/storage.service
+ * @description Handles S3/MinIO bucket initialization, policy configuration, hardware-enforced
+ * presigned POST upload policies, presigned download URLs, and post-upload verification.
+ */
+
 import {
-    Injectable,
-    Logger,
-    type OnModuleInit,
-    BadRequestException,
-    InternalServerErrorException,
-    NotFoundException,
-} from '@nestjs/common';
-import {
-    S3Client,
-    HeadBucketCommand,
     CreateBucketCommand,
-    PutBucketPolicyCommand,
-    GetObjectCommand,
     DeleteObjectCommand,
+    GetObjectCommand,
+    HeadBucketCommand,
     HeadObjectCommand,
+    PutBucketPolicyCommand,
+    S3Client,
 } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { randomUUID } from 'node:crypto';
-import { extname } from 'node:path';
+import {
+    BadRequestException,
+    Injectable,
+    InternalServerErrorException,
+    Logger,
+    NotFoundException,
+    type OnModuleInit,
+} from '@nestjs/common';
 import type {
-    StorageScope,
-    PresignedPostUploadResponse,
     PresignedDownloadResponse,
+    PresignedPostUploadResponse,
+    StorageScope,
     VerifiedStorageObject,
 } from '@royal-academy/types';
-import { STORAGE_SCOPES, type StorageScopeSpec } from './storage.config.js';
+import { randomUUID } from 'node:crypto';
+import { extname } from 'node:path';
+import {
+    STORAGE_DEFAULTS,
+    STORAGE_SCOPES,
+    type StorageScopeSpec,
+} from './storage.constants.js';
 
 @Injectable()
 export class StorageService implements OnModuleInit {
@@ -38,16 +49,16 @@ export class StorageService implements OnModuleInit {
     private readonly cdnBaseUrl?: string;
 
     constructor() {
-        this.endpoint = process.env.S3_ENDPOINT ?? 'http://127.0.0.1:9000';
+        this.endpoint = process.env.S3_ENDPOINT ?? STORAGE_DEFAULTS.ENDPOINT;
         this.publicBucket =
-            process.env.S3_PUBLIC_BUCKET_NAME ?? 'royal-academy-public';
+            process.env.S3_PUBLIC_BUCKET_NAME ?? STORAGE_DEFAULTS.PUBLIC_BUCKET;
         this.privateBucket =
-            process.env.S3_PRIVATE_BUCKET_NAME ?? 'royal-academy-private';
+            process.env.S3_PRIVATE_BUCKET_NAME ?? STORAGE_DEFAULTS.PRIVATE_BUCKET;
         this.cdnBaseUrl = process.env.S3_CDN_URL;
 
         this.s3Client = new S3Client({
             endpoint: this.endpoint,
-            region: process.env.S3_REGION ?? 'us-east-1',
+            region: process.env.S3_REGION ?? STORAGE_DEFAULTS.REGION,
             credentials: {
                 accessKeyId: process.env.S3_ACCESS_KEY ?? 'minioadmin',
                 secretAccessKey: process.env.S3_SECRET_KEY ?? 'minioadminpassword',
@@ -56,12 +67,21 @@ export class StorageService implements OnModuleInit {
         });
     }
 
+    /**
+     * Verifies or creates public and private buckets on module startup.
+     */
     async onModuleInit(): Promise<void> {
         await this.ensureBucket(this.publicBucket, true);
         await this.ensureBucket(this.privateBucket, false);
     }
 
-    private async ensureBucket(bucketName: string, isPublic: boolean): Promise<void> {
+    /**
+     * Ensures target bucket exists, creating it and applying policies if absent.
+     */
+    private async ensureBucket(
+        bucketName: string,
+        isPublic: boolean,
+    ): Promise<void> {
         try {
             await this.s3Client.send(new HeadBucketCommand({ Bucket: bucketName }));
             this.logger.log(`Storage bucket "${bucketName}" verified.`);
@@ -70,18 +90,26 @@ export class StorageService implements OnModuleInit {
                 `Bucket "${bucketName}" not found. Creating bucket (isPublic=${isPublic})...`,
             );
             try {
-                await this.s3Client.send(new CreateBucketCommand({ Bucket: bucketName }));
+                await this.s3Client.send(
+                    new CreateBucketCommand({ Bucket: bucketName }),
+                );
                 this.logger.log(`Created bucket "${bucketName}" successfully.`);
 
                 if (isPublic) {
                     await this.applyPublicReadPolicy(bucketName);
                 }
             } catch (error) {
-                this.logger.error(`Failed to initialize bucket "${bucketName}":`, error);
+                this.logger.error(
+                    `Failed to initialize bucket "${bucketName}":`,
+                    error instanceof Error ? error.stack : error,
+                );
             }
         }
     }
 
+    /**
+     * Applies an anonymous public-read S3 policy statement to a public bucket.
+     */
     private async applyPublicReadPolicy(bucketName: string): Promise<void> {
         const policy = {
             Version: '2012-10-17',
@@ -103,12 +131,20 @@ export class StorageService implements OnModuleInit {
                     Policy: JSON.stringify(policy),
                 }),
             );
-            this.logger.log(`Configured public read policy for bucket "${bucketName}".`);
+            this.logger.log(
+                `Configured public read policy for bucket "${bucketName}".`,
+            );
         } catch (error) {
-            this.logger.error(`Failed to set public policy for "${bucketName}":`, error);
+            this.logger.error(
+                `Failed to set public policy for "${bucketName}":`,
+                error instanceof Error ? error.stack : error,
+            );
         }
     }
 
+    /**
+     * Resolves storage scope specifications and maps to the appropriate bucket name.
+     */
     public getScopeSpec(scope: StorageScope): {
         spec: StorageScopeSpec;
         bucket: string;
@@ -122,8 +158,7 @@ export class StorageService implements OnModuleInit {
     }
 
     /**
-     * Generates a Presigned POST policy document with hardware/storage-enforced
-     * content-length-range and locked Content-Type.
+     * Issues a Presigned POST upload policy document with storage-level size limits and MIME locks.
      */
     async generatePresignedPost(params: {
         scope: StorageScope;
@@ -133,7 +168,6 @@ export class StorageService implements OnModuleInit {
     }): Promise<PresignedPostUploadResponse> {
         const { spec, bucket } = this.getScopeSpec(params.scope);
 
-        // 1. Validate requested MIME against scope whitelist
         const normalizedMime = params.mimeType.toLowerCase();
         if (!spec.allowedMimeTypes.includes(normalizedMime)) {
             throw new BadRequestException(
@@ -141,24 +175,19 @@ export class StorageService implements OnModuleInit {
             );
         }
 
-        // 2. Build non-colliding key path
         const extension = params.originalFilename
             ? extname(params.originalFilename).toLowerCase()
             : `.${normalizedMime.split('/')[1]}`;
         const fileKey = `${spec.pathPrefix}/${params.userId}-${Date.now()}-${randomUUID().slice(0, 8)}${extension}`;
-        const expiresInSeconds = 900; // 15 minutes
+        const expiresInSeconds = STORAGE_DEFAULTS.PRESIGNED_UPLOAD_TTL_SECONDS;
 
         try {
-            // 3. Create Presigned POST with storage-level size range enforcement
             const presignedPost = await createPresignedPost(this.s3Client, {
                 Bucket: bucket,
                 Key: fileKey,
                 Conditions: [
-                    // Storage-level size ceiling: 1 Byte min, maxSizeBytes ceiling
                     ['content-length-range', 1, spec.maxSizeBytes],
-                    // Storage-level exact MIME match
                     ['eq', '$Content-Type', normalizedMime],
-                    // Lock bucket and key
                     ['eq', '$bucket', bucket],
                     ['eq', '$key', fileKey],
                 ],
@@ -176,13 +205,19 @@ export class StorageService implements OnModuleInit {
                 expiresInSeconds,
             };
         } catch (error) {
-            this.logger.error(`Failed to generate Presigned POST for ${params.scope}:`, error);
-            throw new InternalServerErrorException('Unable to issue media upload token.');
+            this.logger.error(
+                `Failed to generate Presigned POST for ${params.scope}:`,
+                error instanceof Error ? error.stack : error,
+            );
+            throw new InternalServerErrorException(
+                'Unable to issue media upload token.',
+            );
         }
     }
 
     /**
-     * Confirms and inspects on-disk object metadata before database persistence.
+     * Confirms on-disk object metadata in S3/MinIO prior to database attachment.
+     * Auto-purges uploaded objects that violate byte bounds or MIME whitelists.
      */
     async verifyAndInspectObject(
         fileKey: string,
@@ -207,7 +242,6 @@ export class StorageService implements OnModuleInit {
         const actualSize = head.ContentLength ?? 0;
         const actualMime = (head.ContentType ?? '').toLowerCase();
 
-        // Guard: Zero-byte file or size ceiling breach
         if (actualSize === 0 || actualSize > spec.maxSizeBytes) {
             await this.deleteObject(fileKey, scope);
             const maxMb = spec.maxSizeBytes / (1024 * 1024);
@@ -216,7 +250,6 @@ export class StorageService implements OnModuleInit {
             );
         }
 
-        // Guard: Content-Type mismatch
         if (!spec.allowedMimeTypes.includes(actualMime)) {
             await this.deleteObject(fileKey, scope);
             throw new BadRequestException(
@@ -232,10 +265,13 @@ export class StorageService implements OnModuleInit {
         };
     }
 
+    /**
+     * Generates a temporary presigned URL for reading private bucket objects.
+     */
     async generatePresignedDownload(
         fileKey: string,
         scope: StorageScope,
-        expiresInSeconds: number = 3600,
+        expiresInSeconds: number = STORAGE_DEFAULTS.PRESIGNED_DOWNLOAD_TTL_SECONDS,
     ): Promise<PresignedDownloadResponse> {
         const { bucket } = this.getScopeSpec(scope);
 
@@ -254,11 +290,19 @@ export class StorageService implements OnModuleInit {
                 expiresInSeconds,
             };
         } catch (error) {
-            this.logger.error(`Failed to generate download URL for "${fileKey}":`, error);
-            throw new InternalServerErrorException('Unable to generate asset download link.');
+            this.logger.error(
+                `Failed to generate download URL for "${fileKey}":`,
+                error instanceof Error ? error.stack : error,
+            );
+            throw new InternalServerErrorException(
+                'Unable to generate asset download link.',
+            );
         }
     }
 
+    /**
+     * Resolves the fully-qualified public CDN or S3 endpoint URL for a public asset.
+     */
     getPublicUrl(fileKey: string): string {
         if (!fileKey) return '';
         if (fileKey.startsWith('http://') || fileKey.startsWith('https://')) {
@@ -272,6 +316,9 @@ export class StorageService implements OnModuleInit {
         return `${cleanEndpoint}/${this.publicBucket}/${fileKey}`;
     }
 
+    /**
+     * Checks whether an object key exists in the corresponding bucket.
+     */
     async objectExists(fileKey: string, scope: StorageScope): Promise<boolean> {
         const { bucket } = this.getScopeSpec(scope);
         try {
@@ -287,6 +334,9 @@ export class StorageService implements OnModuleInit {
         }
     }
 
+    /**
+     * Removes an object key from storage.
+     */
     async deleteObject(fileKey: string, scope: StorageScope): Promise<void> {
         if (!fileKey) return;
         const { bucket } = this.getScopeSpec(scope);
@@ -300,7 +350,10 @@ export class StorageService implements OnModuleInit {
             );
             this.logger.log(`Deleted "${fileKey}" from bucket "${bucket}".`);
         } catch (error) {
-            this.logger.warn(`Failed to delete "${fileKey}" from "${bucket}":`, error);
+            this.logger.warn(
+                `Failed to delete "${fileKey}" from "${bucket}":`,
+                error instanceof Error ? error.stack : error,
+            );
         }
     }
 }

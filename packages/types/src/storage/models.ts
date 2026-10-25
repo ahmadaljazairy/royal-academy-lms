@@ -1,7 +1,18 @@
 /**
  * @file Storage Domain Models & Scopes
- * @module @template/types/storage/models
+ * @module @royal-academy/types/storage/models
  */
+
+/**
+ * Runtime constant array of valid storage scopes.
+ */
+export const STORAGE_SCOPES = [
+    'AVATAR',
+    'COURSE_THUMBNAIL',
+    'COURSE_VIDEO',
+    'COURSE_ATTACHMENT',
+] as const;
+
 
 /**
  * Storage isolation partitions.
@@ -11,21 +22,7 @@
  * - `COURSE_VIDEO`: Private video streams, authenticated playback.
  * - `COURSE_ATTACHMENT`: Supplementary resources (PDFs, code archives).
  */
-export type StorageScope =
-    | 'AVATAR'
-    | 'COURSE_THUMBNAIL'
-    | 'COURSE_VIDEO'
-    | 'COURSE_ATTACHMENT';
-
-/**
- * Runtime constant array of valid storage scopes.
- */
-export const STORAGE_SCOPES: readonly StorageScope[] = [
-    'AVATAR',
-    'COURSE_THUMBNAIL',
-    'COURSE_VIDEO',
-    'COURSE_ATTACHMENT',
-] as const;
+export type StorageScope = (typeof STORAGE_SCOPES)[number];
 
 /**
  * Metadata retrieved from object storage after performing a `headObject` verification.

@@ -1,11 +1,27 @@
+/**
+ * @file Storage Module Constants & Scope Specifications
+ * @module @royal-academy/api/common/storage/storage.constants
+ * @description Centralized configuration for S3/MinIO bucket defaults, presigned TTLs,
+ * and scope specifications (MIME types, byte quotas, and path prefixes).
+ */
+
 import type { StorageScope } from '@royal-academy/types';
 
 export interface StorageScopeSpec {
-    isPublic: boolean;
-    allowedMimeTypes: readonly string[];
-    maxSizeBytes: number;
-    pathPrefix: string;
+    readonly isPublic: boolean;
+    readonly allowedMimeTypes: readonly string[];
+    readonly maxSizeBytes: number;
+    readonly pathPrefix: string;
 }
+
+export const STORAGE_DEFAULTS = {
+    ENDPOINT: 'http://127.0.0.1:9000',
+    REGION: 'us-east-1',
+    PUBLIC_BUCKET: 'royal-academy-public',
+    PRIVATE_BUCKET: 'royal-academy-private',
+    PRESIGNED_UPLOAD_TTL_SECONDS: 900, // 15 Minutes
+    PRESIGNED_DOWNLOAD_TTL_SECONDS: 3600, // 1 Hour
+} as const;
 
 export const STORAGE_SCOPES: Record<StorageScope, StorageScopeSpec> = {
     AVATAR: {
@@ -39,4 +55,4 @@ export const STORAGE_SCOPES: Record<StorageScope, StorageScopeSpec> = {
         maxSizeBytes: 50 * 1024 * 1024, // 50 MB
         pathPrefix: 'courses/attachments',
     },
-};
+} as const;
