@@ -1,6 +1,6 @@
 /**
  * @file Database Client Singleton & Driver Adapter
- * @module @template/database/client
+ * @module @royal-academy/database/client
  * @description Configures and exports a unified PrismaClient instance powered by
  * the PostgreSQL driver adapter (`@prisma/adapter-pg` with `pg.Pool`).
  *

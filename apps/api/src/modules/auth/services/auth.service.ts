@@ -10,19 +10,24 @@ import {
     ConflictException,
     Injectable,
     Logger,
+    NotFoundException,
     UnauthorizedException,
 } from '@nestjs/common';
 import type { AuthUserResponse, Role } from '@royal-academy/types';
 
-import { AuditLogService, SecurityAuditEvent } from '../../../common/audit/index.js';
-import { EmailQueueService } from '../../../common/email/email-queue.service.js';
+import {
+    AuditLogService,
+    SecurityAuditEvent,
+} from '../../../common/audit/index.js';
+import { EmailQueueService } from '../../../common/email/index.js';
 import { PrismaService } from '../../../common/prisma/prisma.service.js';
 import { Argon2Service } from '../../../common/security/argon2.service.js';
-import { LoginDto } from '../dto/login.dto.js';
-import { RegisterDto } from '../dto/register.dto.js';
+
 import { AuthTokenManager, TokenType } from './auth-token.manager.js';
-import {type SessionResult, SessionService} from "./session.service.js";
-import {ResetPasswordDto} from "../dto/index.js";
+import { type SessionResult, SessionService } from './session.service.js';
+import { RegisterDto } from '../dto/register.dto.js';
+import { LoginDto } from '../dto/login.dto.js';
+import { ResetPasswordDto } from '../dto/password-reset.dto.js';
 
 export interface LoginResult {
     readonly session: SessionResult;
@@ -48,13 +53,38 @@ export class AuthService {
     ) {}
 
     /**
+     * Retrieves the sanitized public profile for an authenticated user ID.
+     */
+    async getProfile(userId: string): Promise<AuthUserResponse> {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                email: true,
+                displayName: true,
+                role: true,
+                isEmailVerified: true,
+            },
+        });
+
+        if (!user) {
+            throw new NotFoundException(
+                `User with ID "${userId}" was not found.`,
+            );
+        }
+
+        return {
+            id: user.id,
+            email: user.email,
+            displayName: user.displayName,
+            role: user.role as Role,
+            isEmailVerified: user.isEmailVerified,
+        };
+    }
+
+    /**
      * Registers a new user account, hashes credentials with Argon2id,
      * creates linked records, and dispatches an email verification job.
-     *
-     * @param dto - User registration payload
-     * @param metadata - Request IP address and User-Agent headers
-     * @returns Sanitized user profile response
-     * @throws ConflictException if the email address is already registered
      */
     async register(
         dto: RegisterDto,
@@ -96,7 +126,6 @@ export class AuthService {
             },
         });
 
-        // Record account creation in immutable security audit log
         await this.audit.record({
             userId: user.id,
             event: SecurityAuditEvent.AUTH_REGISTER,
@@ -108,7 +137,6 @@ export class AuthService {
             },
         });
 
-        // Generate 24h single-use verification token in Redis
         const { rawToken, tokenHash } = await this.authTokenManager.generateToken(
             TokenType.EMAIL_VERIFICATION,
             user.id,
@@ -122,7 +150,6 @@ export class AuthService {
             metadata: { tokenHash },
         });
 
-        // Enqueue background email dispatch job
         await this.emailQueueService.queueVerificationEmail(user.email, rawToken);
 
         this.logger.log(`User registered & verification queued: ${user.email}`);
@@ -139,11 +166,6 @@ export class AuthService {
     /**
      * Validates and consumes an email verification token, updates user status in PostgreSQL,
      * and patches active live sessions in Redis.
-     *
-     * @param token - Raw user-facing verification token string
-     * @param metadata - Request IP address and User-Agent headers
-     * @returns Promise resolving to true on successful verification
-     * @throws BadRequestException if the token is missing, invalid, or expired
      */
     async verifyEmail(
         token: string,
@@ -153,23 +175,22 @@ export class AuthService {
             throw new BadRequestException('Verification token is required.');
         }
 
-        // Atomically consume token from Redis (GETDEL)
         const userId = await this.authTokenManager.consumeToken(
             TokenType.EMAIL_VERIFICATION,
             token,
         );
 
         if (!userId) {
-            throw new BadRequestException('Invalid or expired verification token.');
+            throw new BadRequestException(
+                'Invalid or expired verification token.',
+            );
         }
 
-        // Mark user as verified in PostgreSQL
         await this.prisma.user.update({
             where: { id: userId },
             data: { isEmailVerified: true },
         });
 
-        // Patch active live sessions in Redis to reflect verification status immediately
         await this.sessionService.updateUserSessions(userId, {
             isEmailVerified: true,
         });
@@ -187,10 +208,6 @@ export class AuthService {
 
     /**
      * Resends an email verification link to unverified users.
-     * Hardened against user enumeration attacks: returns silently if account doesn't exist or is verified.
-     *
-     * @param email - Target user email address
-     * @param metadata - Request IP address and User-Agent headers
      */
     async resendVerification(
         email: string,
@@ -203,7 +220,6 @@ export class AuthService {
             select: { id: true, email: true, isEmailVerified: true },
         });
 
-        // Anti-enumeration defense: return silently if user not found or already verified
         if (!user || user.isEmailVerified) {
             return;
         }
@@ -228,14 +244,8 @@ export class AuthService {
 
     /**
      * Verifies user credentials against stored Argon2id hashes and initializes a stateful Redis session.
-     *
-     * @param dto - User login credentials payload
-     * @returns Login result containing active session metadata and user profile
-     * @throws UnauthorizedException if credentials are invalid
      */
-    async login(
-        dto: LoginDto,
-    ): Promise<LoginResult> {
+    async login(dto: LoginDto): Promise<LoginResult> {
         const normalizedEmail = dto.email.trim().toLowerCase();
 
         const user = await this.prisma.user.findUnique({
@@ -263,7 +273,6 @@ export class AuthService {
             throw new UnauthorizedException('Invalid email or password.');
         }
 
-        // Initialize stateful session in Redis (with dynamic Remember Me TTL support)
         const sessionResult = await this.sessionService.createSession({
             userId: user.id,
             email: user.email,
@@ -288,9 +297,6 @@ export class AuthService {
 
     /**
      * Destroys an active login session in Redis.
-     *
-     * @param sessionId - Active session ID extracted from cookie or header
-     * @returns Boolean status indicating whether deletion succeeded
      */
     async logout(sessionId: string): Promise<boolean> {
         if (!sessionId) {
@@ -301,10 +307,6 @@ export class AuthService {
 
     /**
      * Generates a 1-hour password reset link and queues an email notification.
-     * Hardened against user enumeration attacks: returns silently if account is not found.
-     *
-     * @param email - Target user email address
-     * @param metadata - Request IP address and User-Agent headers
      */
     async forgotPassword(
         email: string,
@@ -317,7 +319,6 @@ export class AuthService {
             select: { id: true, email: true },
         });
 
-        // Anti-enumeration defense: Return silently without queuing email or revealing presence
         if (!user) {
             this.logger.warn(
                 `Password reset requested for non-existent email: ${normalizedEmail}`,
@@ -325,13 +326,11 @@ export class AuthService {
             return;
         }
 
-        // Generate 1-hour ephemeral token in Redis
         const { rawToken, tokenHash } = await this.authTokenManager.generateToken(
             TokenType.PASSWORD_RESET,
             user.id,
         );
 
-        // Record audit event using SHA-256 hash (never raw token)
         await this.audit.record({
             userId: user.id,
             event: SecurityAuditEvent.AUTH_PASSWORD_RESET_REQUESTED,
@@ -347,13 +346,6 @@ export class AuthService {
 
     /**
      * Executes a password reset using a single-use ephemeral token.
-     * Consumes token from Redis, hashes the new password with Argon2id, updates PostgreSQL,
-     * and terminates ALL active sessions across all devices.
-     *
-     * @param dto - Token and new password payload
-     * @param metadata - Request IP address and User-Agent headers
-     * @returns Promise resolving to true on completion
-     * @throws BadRequestException if the reset token is invalid or expired
      */
     async resetPassword(
         dto: ResetPasswordDto,
@@ -363,7 +355,6 @@ export class AuthService {
             throw new BadRequestException('Reset token is required.');
         }
 
-        // 1. Atomically consume token from Redis (GETDEL)
         const userId = await this.authTokenManager.consumeToken(
             TokenType.PASSWORD_RESET,
             dto.token,
@@ -375,21 +366,17 @@ export class AuthService {
             );
         }
 
-        // 2. Hash new password using Argon2id
         const passwordHash = await this.argon2Service.hashPassword(
             dto.newPassword,
         );
 
-        // 3. Update database record in PostgreSQL
         await this.prisma.user.update({
             where: { id: userId },
             data: { passwordHash },
         });
 
-        // 4. Invalidate all active Redis sessions across all browsers/devices
         await this.sessionService.destroyAllUserSessions(userId, metadata);
 
-        // 5. Persist immutable security audit log entry
         await this.audit.record({
             userId,
             event: SecurityAuditEvent.AUTH_PASSWORD_RESET_COMPLETED,

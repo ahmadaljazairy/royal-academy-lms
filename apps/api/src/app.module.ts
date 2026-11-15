@@ -15,9 +15,11 @@ import {EmailModule} from "./common/email/index.js";
 import {StorageModule} from "./common/storage/index.js";
 import {UsersModule} from "./modules/users/users.module.js";
 import {RateLimitGuardModule} from "./common/guards/rate-limit-guard/rate-limit.module.js";
+import {EventEmitterModule} from "@nestjs/event-emitter";
 
 @Module({
     imports: [
+        EventEmitterModule.forRoot(),
         PrismaModule,
         RedisModule,
         SecurityModule,

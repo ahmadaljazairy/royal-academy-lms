@@ -240,7 +240,8 @@ export class AuthCacheRepository {
 
         try {
             // Primary Execution: Atomic GETDEL (Redis 6.2+)
-            return await this.redis.raw.getdel(key);
+            const rawValue = await this.redis.raw.getdel(key);
+            return this.deserializeStringValue(rawValue);
         } catch (error) {
             this.logger.warn(
                 `Redis GETDEL failed for key "${key}". Falling back to multi/exec pipeline.`,
@@ -259,7 +260,26 @@ export class AuthCacheRepository {
                 return null;
             }
 
-            return (getResult[1] as string) || null;
+            return this.deserializeStringValue(
+                (getResult[1] as string | null) ?? null,
+            );
+        }
+    }
+
+    /**
+     * Unwraps strings serialized via `RedisService.set()` (`JSON.stringify`) while
+     * remaining backward-compatible with raw unquoted strings.
+     */
+    private deserializeStringValue(rawValue: string | null): string | null {
+        if (!rawValue) {
+            return null;
+        }
+
+        try {
+            const parsed: unknown = JSON.parse(rawValue);
+            return typeof parsed === 'string' ? parsed : rawValue;
+        } catch {
+            return rawValue;
         }
     }
 }

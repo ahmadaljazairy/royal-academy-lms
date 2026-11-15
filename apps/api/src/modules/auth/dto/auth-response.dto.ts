@@ -1,109 +1,95 @@
+/**
+ * @file Authentication Response DTOs
+ * @module @royal-academy/api/modules/auth/dto/auth-response
+ * @description OpenAPI models for authentication response payloads.
+ */
+
 import { ApiProperty } from '@nestjs/swagger';
-import type {
-    UserProfile,
-    UserSession,
-    LogoutResult,
-    ApiSuccessResponse,
-    Role,
+import {
+    ROLES,
+    type AuthUser,
+    type LogoutResponse,
+    type Role,
 } from '@royal-academy/types';
 
-export class UserProfileDto implements UserProfile {
-    @ApiProperty({ example: 'usr_cm1349f82000008l07b60g5d7' })
+/**
+ * Public authenticated-user response payload (`register`, `login`, `me`).
+ */
+export class AuthUserResponseDto implements AuthUser {
+    @ApiProperty({
+        example: 'usr_cm1349f82000008l07b60g5d7',
+        description: 'Unique user identifier.',
+    })
     id!: string;
 
-    @ApiProperty({ example: 'academy.student@domain.com' })
+    @ApiProperty({
+        example: 'academy.student@domain.com',
+        description: 'Primary user email address.',
+        format: 'email',
+    })
     email!: string;
 
-    @ApiProperty({ example: 'Ahmad Aljazairy' })
+    @ApiProperty({
+        example: 'Ahmad Aljazairy',
+        description: 'Full display name.',
+    })
     displayName!: string;
 
-    @ApiProperty({ example: 'STUDENT', enum: ['STUDENT', 'INSTRUCTOR', 'ADMIN'] })
+    @ApiProperty({
+        example: 'STUDENT',
+        description: 'System authorization role.',
+        enum: ROLES,
+        enumName: 'Role',
+    })
     role!: Role;
 
-    @ApiProperty({ example: false })
+    @ApiProperty({
+        example: false,
+        description: 'Whether ownership of the email address has been verified.',
+    })
     isEmailVerified!: boolean;
 }
 
-export class UserSessionDto implements UserSession {
-    @ApiProperty({ example: 'usr_cm1349f82000008l07b60g5d7' })
-    userId!: string;
-
-    @ApiProperty({ example: 'academy.student@domain.com' })
-    email!: string;
-
-    @ApiProperty({ example: 'STUDENT', enum: ['STUDENT', 'INSTRUCTOR', 'ADMIN'] })
-    role!: Role;
-
-    @ApiProperty({ example: true, description: 'Whether the user has verified their email address' })
-    isEmailVerified!: boolean;
-
-    @ApiProperty({ example: 1788703200000, description: 'Unix timestamp in milliseconds' })
-    createdAt!: number;
-
-}
-
-export class LogoutDataDto implements LogoutResult {
-    @ApiProperty({ example: true })
+/**
+ * Successful logout response payload.
+ */
+export class LogoutResponseDto implements LogoutResponse {
+    @ApiProperty({
+        example: true,
+        description: 'Whether the server-side session was invalidated.',
+    })
     loggedOut!: boolean;
 }
 
-export class AuthResponseEnvelopeDto implements ApiSuccessResponse<UserProfileDto> {
-    @ApiProperty({ example: true })
-    success!: true;
-
-    @ApiProperty({ example: 200 })
-    statusCode!: number;
-
-    @ApiProperty({ example: 'Operation completed successfully' })
-    message!: string;
-
-    @ApiProperty({ type: UserProfileDto })
-    data!: UserProfileDto;
-
-    @ApiProperty({ example: 'd2997aca-cdd4-4172-9696-ae5bece225c0' })
-    traceId!: string;
-
-    @ApiProperty({ example: '2026-09-08T18:00:00.000Z' })
-    timestamp!: string;
+/**
+ * Successful email verification response payload.
+ */
+export class VerifyEmailResponseDto {
+    @ApiProperty({
+        example: true,
+        description: 'Whether the email address was verified successfully.',
+    })
+    verified!: boolean;
 }
 
-export class SessionResponseEnvelopeDto implements ApiSuccessResponse<UserSessionDto> {
-    @ApiProperty({ example: true })
-    success!: true;
-
-    @ApiProperty({ example: 200 })
-    statusCode!: number;
-
-    @ApiProperty({ example: 'Authenticated profile retrieved' })
-    message!: string;
-
-    @ApiProperty({ type: UserSessionDto })
-    data!: UserSessionDto;
-
-    @ApiProperty({ example: 'd2997aca-cdd4-4172-9696-ae5bece225c0' })
-    traceId!: string;
-
-    @ApiProperty({ example: '2026-09-08T18:00:00.000Z' })
-    timestamp!: string;
+/**
+ * Administrative RBAC verification response payload.
+ */
+export class AdminCheckResponseDto {
+    @ApiProperty({
+        example: true,
+        description: 'Confirms administrative access privileges.',
+    })
+    access!: boolean;
 }
 
-export class LogoutResponseEnvelopeDto implements ApiSuccessResponse<LogoutDataDto> {
-    @ApiProperty({ example: true })
-    success!: true;
-
-    @ApiProperty({ example: 200 })
-    statusCode!: number;
-
-    @ApiProperty({ example: 'Logged out successfully' })
+/**
+ * Generic informational message payload for anti-enumeration and password reset endpoints.
+ */
+export class AuthMessageResponseDto {
+    @ApiProperty({
+        example: 'Operation completed successfully.',
+        description: 'Human-readable status message.',
+    })
     message!: string;
-
-    @ApiProperty({ type: LogoutDataDto })
-    data!: LogoutDataDto;
-
-    @ApiProperty({ example: 'd2997aca-cdd4-4172-9696-ae5bece225c0' })
-    traceId!: string;
-
-    @ApiProperty({ example: '2026-09-08T18:00:00.000Z' })
-    timestamp!: string;
-
 }

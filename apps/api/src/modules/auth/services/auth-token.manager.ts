@@ -7,8 +7,10 @@
 
 import { Injectable } from '@nestjs/common';
 import { TokenService } from '../../../common/security/token.service.js';
-import type {AuthCacheRepository, EphemeralTokenType} from "../cache/auth-cache.repository.js";
-
+import {
+    AuthCacheRepository,
+    type EphemeralTokenType,
+} from '../cache/auth-cache.repository.js';
 
 export enum TokenType {
     EMAIL_VERIFICATION = 'verify',
@@ -28,22 +30,15 @@ export class AuthTokenManager {
     ) {}
 
     /**
-     * Computes a SHA-256 digest of a raw token using TokenService.
-     *
-     * @param rawToken - Unhashed plain-text token
-     * @returns Deterministic SHA-256 hex digest
+     * Computes an SHA-256 digest of a raw token using TokenService.
      */
     hashToken(rawToken: string): string {
         return this.tokenService.hashToken(rawToken);
     }
 
     /**
-     * Generates a 32-byte CSPRNG token, computes its SHA-256 digest, persists
+     * Generates a 32-byte token, computes its SHA-256 digest, persists
      * `tokenHash -> userId` in Redis via AuthCacheRepository, and returns both formats.
-     *
-     * @param type - Token workflow type ('verify' | 'reset')
-     * @param userId - Target user ID (CUID)
-     * @returns Object containing the raw token (for URL links) and hash (for logs/audits)
      */
     async generateToken(
         type: TokenType | EphemeralTokenType,
@@ -63,11 +58,6 @@ export class AuthTokenManager {
 
     /**
      * Validates and atomically consumes a single-use token by deleting it from Redis.
-     * Prevents token replay attacks by ensuring tokens can only be used once.
-     *
-     * @param type - Token workflow type ('verify' | 'reset')
-     * @param rawToken - Unhashed plain-text token received from the user
-     * @returns Associated userId if valid and unconsumed, or null if invalid/expired
      */
     async consumeToken(
         type: TokenType | EphemeralTokenType,

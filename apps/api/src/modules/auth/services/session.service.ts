@@ -2,7 +2,7 @@
  * @file Session Management Service
  * @module @royal-academy/api/modules/auth/services/session.service
  * @description High-level domain orchestrator handling token generation,
- * state persistence via SessionCacheRepository, and security audit logging.
+ * state persistence via AuthCacheRepository, and security audit logging.
  */
 
 import { Injectable, Logger } from '@nestjs/common';
@@ -39,7 +39,7 @@ export class SessionService {
     private readonly logger = new Logger(SessionService.name);
 
     constructor(
-        private readonly sessionCache: AuthCacheRepository,
+        private readonly authCache: AuthCacheRepository,
         private readonly tokenService: TokenService,
         private readonly audit: AuditLogService,
     ) {}
@@ -63,9 +63,12 @@ export class SessionService {
             role: input.role,
             createdAt: Date.now(),
             isEmailVerified: input.isEmailVerified,
+            ...(input.rememberMe !== undefined
+                ? { rememberMe: input.rememberMe }
+                : {}),
         };
 
-        await this.sessionCache.createSession(sessionId, session, ttlSeconds);
+        await this.authCache.createSession(sessionId, session, ttlSeconds);
 
         return { sessionId, expiresAt, session };
     }
@@ -75,7 +78,7 @@ export class SessionService {
      */
     async getSession(sessionId: string): Promise<UserSession | null> {
         if (!sessionId) return null;
-        return this.sessionCache.getSession(sessionId);
+        return this.authCache.getSession(sessionId);
     }
 
     /**
@@ -84,7 +87,7 @@ export class SessionService {
     async destroySession(sessionId: string): Promise<boolean> {
         if (!sessionId) return false;
         const session = await this.getSession(sessionId);
-        return this.sessionCache.destroySession(sessionId, session?.userId);
+        return this.authCache.destroySession(sessionId, session?.userId);
     }
 
     /**
@@ -96,7 +99,7 @@ export class SessionService {
     ): Promise<number> {
         if (!userId) return 0;
 
-        const revokedCount = await this.sessionCache.destroyAllUserSessions(userId);
+        const revokedCount = await this.authCache.destroyAllUserSessions(userId);
         if (revokedCount === 0) return 0;
 
         await this.audit.record({
@@ -124,14 +127,14 @@ export class SessionService {
     ): Promise<number> {
         if (!userId) return 0;
 
-        const allSessionIds = await this.sessionCache.getUserSessionIds(userId);
+        const allSessionIds = await this.authCache.getUserSessionIds(userId);
         const sessionsToRevoke = allSessionIds.filter(
             (id) => id !== activeSessionId,
         );
 
         if (!sessionsToRevoke.length) return 0;
 
-        await this.sessionCache.destroySessions(userId, sessionsToRevoke);
+        await this.authCache.destroySessions(userId, sessionsToRevoke);
 
         await this.audit.record({
             userId,
@@ -159,6 +162,6 @@ export class SessionService {
         partialUpdate: Partial<UserSession>,
     ): Promise<void> {
         if (!userId) return;
-        await this.sessionCache.updateUserSessions(userId, partialUpdate);
+        await this.authCache.updateUserSessions(userId, partialUpdate);
     }
 }

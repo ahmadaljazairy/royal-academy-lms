@@ -7,21 +7,26 @@ import {
     Logger,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import * as argon2 from 'argon2';
-import { PrismaService } from '../../common/prisma/prisma.service.js';
-import { StorageService } from '../../common/storage/index.js';
 import type {
     UserProfileResponse,
     PublicProfileResponse,
     PresignedPostUploadResponse,
+    ConfirmAvatarUploadResponse,
+    ChangePasswordResponse,
+    Role,
 } from '@royal-academy/types';
+
+import { PrismaService } from '../../common/prisma/prisma.service.js';
+import { StorageService } from '../../common/storage/index.js';
+import { Argon2Service } from '../../common/security/argon2.service.js';
+import { UserPasswordChangedEvent } from '../auth/listeners/auth-event.listener.js';
+
 import type {
     UpdateProfileDto,
     RequestAvatarUploadDto,
     ConfirmAvatarUploadDto,
     ChangePasswordDto,
 } from './dto/index.js';
-import { UserPasswordChangedEvent } from '../auth/listeners/auth-event.listener.js';
 
 @Injectable()
 export class UsersService {
@@ -30,13 +35,33 @@ export class UsersService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly storageService: StorageService,
+        private readonly argon2Service: Argon2Service,
         private readonly eventEmitter: EventEmitter2,
     ) {}
 
     async getMeProfile(userId: string): Promise<UserProfileResponse> {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
-            include: { profile: true },
+            select: {
+                id: true,
+                email: true,
+                displayName: true,
+                role: true,
+                isEmailVerified: true,
+                createdAt: true,
+                profile: {
+                    select: {
+                        headline: true,
+                        bio: true,
+                        avatarUrl: true,
+                        phoneNumber: true,
+                        websiteUrl: true,
+                        githubUrl: true,
+                        linkedinUrl: true,
+                        updatedAt: true,
+                    },
+                },
+            },
         });
 
         if (!user || !user.profile) {
@@ -47,7 +72,7 @@ export class UsersService {
             userId: user.id,
             email: user.email,
             displayName: user.displayName,
-            role: user.role,
+            role: user.role as Role,
             isEmailVerified: user.isEmailVerified,
             headline: user.profile.headline,
             bio: user.profile.bio,
@@ -65,51 +90,92 @@ export class UsersService {
         userId: string,
         dto: UpdateProfileDto,
     ): Promise<UserProfileResponse> {
-        const user = await this.prisma.user.findUnique({
+        const existingUser = await this.prisma.user.findUnique({
             where: { id: userId },
-            include: { profile: true },
+            select: {
+                id: true,
+                email: true,
+                displayName: true,
+                role: true,
+                isEmailVerified: true,
+                createdAt: true,
+            },
         });
 
-        if (!user) {
+        if (!existingUser) {
             throw new NotFoundException('User account not found.');
         }
 
-        // 1. If displayName is modified, update database
-        if (dto.displayName && dto.displayName !== user.displayName) {
-            await this.prisma.user.update({
-                where: { id: userId },
-                data: { displayName: dto.displayName },
-            });
-        }
+        const shouldUpdateDisplayName =
+            dto.displayName !== undefined &&
+            dto.displayName !== existingUser.displayName;
 
-        // 2. Upsert profile metadata
-        const updatedProfile = await this.prisma.profile.upsert({
-            where: { userId },
-            create: {
-                userId,
-                headline: dto.headline,
-                bio: dto.bio,
-                phoneNumber: dto.phoneNumber,
-                websiteUrl: dto.websiteUrl,
-                githubUrl: dto.githubUrl,
-                linkedinUrl: dto.linkedinUrl,
+        const { displayName, updatedProfile } = await this.prisma.$transaction(
+            async (tx) => {
+                const resolvedDisplayName = shouldUpdateDisplayName
+                    ? (
+                        await tx.user.update({
+                            where: { id: userId },
+                            data: { displayName: dto.displayName },
+                            select: { displayName: true },
+                        })
+                    ).displayName
+                    : existingUser.displayName;
+
+                const profile = await tx.profile.upsert({
+                    where: { userId },
+                    create: {
+                        userId,
+                        headline: dto.headline,
+                        bio: dto.bio,
+                        phoneNumber: dto.phoneNumber,
+                        websiteUrl: dto.websiteUrl,
+                        githubUrl: dto.githubUrl,
+                        linkedinUrl: dto.linkedinUrl,
+                    },
+                    update: {
+                        ...(dto.headline !== undefined && {
+                            headline: dto.headline,
+                        }),
+                        ...(dto.bio !== undefined && { bio: dto.bio }),
+                        ...(dto.phoneNumber !== undefined && {
+                            phoneNumber: dto.phoneNumber,
+                        }),
+                        ...(dto.websiteUrl !== undefined && {
+                            websiteUrl: dto.websiteUrl,
+                        }),
+                        ...(dto.githubUrl !== undefined && {
+                            githubUrl: dto.githubUrl,
+                        }),
+                        ...(dto.linkedinUrl !== undefined && {
+                            linkedinUrl: dto.linkedinUrl,
+                        }),
+                    },
+                    select: {
+                        headline: true,
+                        bio: true,
+                        avatarUrl: true,
+                        phoneNumber: true,
+                        websiteUrl: true,
+                        githubUrl: true,
+                        linkedinUrl: true,
+                        updatedAt: true,
+                    },
+                });
+
+                return {
+                    displayName: resolvedDisplayName,
+                    updatedProfile: profile,
+                };
             },
-            update: {
-                ...(dto.headline !== undefined && { headline: dto.headline }),
-                ...(dto.bio !== undefined && { bio: dto.bio }),
-                ...(dto.phoneNumber !== undefined && { phoneNumber: dto.phoneNumber }),
-                ...(dto.websiteUrl !== undefined && { websiteUrl: dto.websiteUrl }),
-                ...(dto.githubUrl !== undefined && { githubUrl: dto.githubUrl }),
-                ...(dto.linkedinUrl !== undefined && { linkedinUrl: dto.linkedinUrl }),
-            },
-        });
+        );
 
         return {
-            userId: user.id,
-            email: user.email,
-            displayName: dto.displayName ?? user.displayName,
-            role: user.role,
-            isEmailVerified: user.isEmailVerified,
+            userId: existingUser.id,
+            email: existingUser.email,
+            displayName,
+            role: existingUser.role as Role,
+            isEmailVerified: existingUser.isEmailVerified,
             headline: updatedProfile.headline,
             bio: updatedProfile.bio,
             avatarUrl: updatedProfile.avatarUrl,
@@ -117,7 +183,7 @@ export class UsersService {
             websiteUrl: updatedProfile.websiteUrl,
             githubUrl: updatedProfile.githubUrl,
             linkedinUrl: updatedProfile.linkedinUrl,
-            createdAt: user.createdAt.toISOString(),
+            createdAt: existingUser.createdAt.toISOString(),
             updatedAt: updatedProfile.updatedAt.toISOString(),
         };
     }
@@ -137,8 +203,12 @@ export class UsersService {
     async confirmAvatarUpload(
         userId: string,
         dto: ConfirmAvatarUploadDto,
-    ): Promise<{ avatarUrl: string }> {
-        const expectedPrefix = `avatars/${userId}-`;
+    ): Promise<ConfirmAvatarUploadResponse> {
+        const {
+            spec: { pathPrefix },
+        } = this.storageService.getScopeSpec('AVATAR');
+        const expectedPrefix = `${pathPrefix}/${userId}-`;
+
         if (!dto.fileKey.startsWith(expectedPrefix)) {
             throw new ForbiddenException(
                 'Access denied: You cannot attach an asset you do not own.',
@@ -152,6 +222,7 @@ export class UsersService {
 
         const currentProfile = await this.prisma.profile.findUnique({
             where: { userId },
+            select: { avatarUrl: true },
         });
 
         await this.prisma.profile.upsert({
@@ -165,8 +236,14 @@ export class UsersService {
             },
         });
 
-        if (currentProfile?.avatarUrl && currentProfile.avatarUrl !== verifiedObject.publicUrl) {
-            const oldKey = this.extractKeyFromUrl(currentProfile.avatarUrl);
+        if (
+            currentProfile?.avatarUrl &&
+            currentProfile.avatarUrl !== verifiedObject.publicUrl
+        ) {
+            const oldKey = this.extractKeyFromUrl(
+                currentProfile.avatarUrl,
+                pathPrefix,
+            );
             if (oldKey) {
                 await this.storageService.deleteObject(oldKey, 'AVATAR');
             }
@@ -180,16 +257,20 @@ export class UsersService {
         currentSessionId: string,
         dto: ChangePasswordDto,
         metadata?: { ipAddress?: string; userAgent?: string },
-    ): Promise<{ message: string }> {
+    ): Promise<ChangePasswordResponse> {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
+            select: {
+                id: true,
+                passwordHash: true,
+            },
         });
 
         if (!user) {
             throw new NotFoundException('User account not found.');
         }
 
-        const isCurrentValid = await argon2.verify(
+        const isCurrentValid = await this.argon2Service.verifyPassword(
             user.passwordHash,
             dto.currentPassword,
         );
@@ -197,7 +278,7 @@ export class UsersService {
             throw new UnauthorizedException('Current password does not match.');
         }
 
-        const isSamePassword = await argon2.verify(
+        const isSamePassword = await this.argon2Service.verifyPassword(
             user.passwordHash,
             dto.newPassword,
         );
@@ -207,17 +288,18 @@ export class UsersService {
             );
         }
 
-        const newHash = await argon2.hash(dto.newPassword);
+        const newHash = await this.argon2Service.hashPassword(dto.newPassword);
         await this.prisma.user.update({
             where: { id: userId },
             data: { passwordHash: newHash },
         });
 
-        // Decoupled: Emit domain event to allow AuthEventListener to revoke other sessions asynchronously
         this.eventEmitter.emit(
             'user.password-changed',
             new UserPasswordChangedEvent(userId, currentSessionId, metadata),
         );
+
+        this.logger.log(`Password changed for userId: ${userId}`);
 
         return {
             message: 'Password successfully changed. Other sessions revoked.',
@@ -227,7 +309,21 @@ export class UsersService {
     async getPublicProfile(userId: string): Promise<PublicProfileResponse> {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
-            include: { profile: true },
+            select: {
+                id: true,
+                displayName: true,
+                role: true,
+                profile: {
+                    select: {
+                        headline: true,
+                        bio: true,
+                        avatarUrl: true,
+                        websiteUrl: true,
+                        githubUrl: true,
+                        linkedinUrl: true,
+                    },
+                },
+            },
         });
 
         if (!user) {
@@ -237,7 +333,7 @@ export class UsersService {
         return {
             userId: user.id,
             displayName: user.displayName,
-            role: user.role,
+            role: user.role as Role,
             headline: user.profile?.headline ?? null,
             bio: user.profile?.bio ?? null,
             avatarUrl: user.profile?.avatarUrl ?? null,
@@ -247,13 +343,13 @@ export class UsersService {
         };
     }
 
-    private extractKeyFromUrl(url: string): string | null {
+    private extractKeyFromUrl(url: string, pathPrefix: string): string | null {
         try {
             const parsed = new URL(url);
             const parts = parsed.pathname.split('/');
-            const avatarsIndex = parts.indexOf('avatars');
-            if (avatarsIndex !== -1) {
-                return parts.slice(avatarsIndex).join('/');
+            const prefixIndex = parts.indexOf(pathPrefix);
+            if (prefixIndex !== -1) {
+                return parts.slice(prefixIndex).join('/');
             }
             return null;
         } catch {

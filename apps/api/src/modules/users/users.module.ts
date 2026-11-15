@@ -1,14 +1,15 @@
 import { Module } from '@nestjs/common';
+
+import { SecurityModule } from '../../common/security/security.module.js';
+import { RateLimitGuard } from '../../common/guards/index.js';
+
 import { UsersController } from './users.controller.js';
 import { UsersService } from './users.service.js';
 
-import {PrismaModule} from "../../common/prisma/prisma.module.js";
-import {StorageModule} from "../../common/storage/index.js";
-
 @Module({
-    imports: [PrismaModule, StorageModule],
+    imports: [SecurityModule],
     controllers: [UsersController],
-    providers: [UsersService],
+    providers: [UsersService, RateLimitGuard],
     exports: [UsersService],
 })
 export class UsersModule {}

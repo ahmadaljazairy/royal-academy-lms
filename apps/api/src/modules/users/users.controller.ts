@@ -8,29 +8,18 @@ import {
     Req,
     Ip,
     Headers,
-    HttpCode,
     HttpStatus,
-    // UseGuards,
+    UseGuards,
     UnauthorizedException,
 } from '@nestjs/common';
-import {
-    ApiTags,
-    ApiOperation,
-    ApiResponse,
-    ApiBody,
-    ApiCookieAuth,
-    ApiBadRequestResponse,
-    ApiUnauthorizedResponse,
-    ApiForbiddenResponse,
-    ApiNotFoundResponse,
-    ApiTooManyRequestsResponse,
-} from '@nestjs/swagger';
+import { ApiTags, ApiCookieAuth } from '@nestjs/swagger';
 import type { Request } from 'express';
 
 // -----------------------------------------------------------------------------
 // Shared Monorepo Contracts
 // -----------------------------------------------------------------------------
 import type {
+    ApiSuccessResponse,
     UserProfileResponse,
     PublicProfileResponse,
     PresignedPostUploadResponse,
@@ -39,12 +28,13 @@ import type {
 } from '@royal-academy/types';
 
 // -----------------------------------------------------------------------------
-// Cross-Cutting Common Utilities (Guards, Decorators, DTOs)
+// Cross-Cutting Common Utilities (Guards, Decorators, Interfaces)
 // -----------------------------------------------------------------------------
 import { Public } from '../../common/decorators/public.decorator.js';
-// import { RateLimit } from '../../common/decorators/rate-limit.decorator.js';
-import { ResponseMessage } from '../../common/decorators/response.decorators.js';
-import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
+import { RateLimit } from '../../common/decorators/rate-limit.decorator.js';
+import { ApiDoc } from '../../common/decorators/api-doc.decorator.js';
+import { RateLimitGuard } from '../../common/guards/index.js';
+import type { AuthenticatedRequest } from '../../common/interfaces/index.js';
 
 // -----------------------------------------------------------------------------
 // Auth & Identity Integration
@@ -61,13 +51,12 @@ import {
     RequestAvatarUploadDto,
     ConfirmAvatarUploadDto,
     ChangePasswordDto,
-    UserProfileEnvelopeDto,
-    PublicProfileEnvelopeDto,
-    AvatarUploadTicketEnvelopeDto,
-    ConfirmAvatarEnvelopeDto,
-    ChangePasswordEnvelopeDto,
+    UserProfileDataDto,
+    PublicProfileDataDto,
+    PresignedPostUploadDataDto,
+    ConfirmAvatarUploadDataDto,
+    ChangePasswordDataDto,
 } from './dto/index.js';
-// import {RateLimitGuard} from "../../common/guards/index.js";
 
 /**
  * Controller managing private account profiles, public profile lookups,
@@ -86,69 +75,53 @@ export class UsersController {
     // ===========================================================================
 
     /**
-     * Retrieve current user profile.
-     *
-     * Fetches full private profile information for the authenticated session owner.
+     * Retrieve full private profile information for the authenticated session owner.
      */
     @Get('me/profile')
-    @HttpCode(HttpStatus.OK)
     @ApiCookieAuth('session-cookie')
-    @ResponseMessage('User profile retrieved successfully')
-    @ApiOperation({
+    @ApiDoc({
         summary: 'Get current user profile',
         description:
             'Retrieves the complete private profile for the authenticated session owner, including contact information and verification status.',
-    })
-    @ApiResponse({
         status: HttpStatus.OK,
-        description: 'Profile retrieved successfully.',
-        type: UserProfileEnvelopeDto,
-    })
-    @ApiUnauthorizedResponse({
-        description: 'Session cookie is missing, invalid, or expired.',
-        type: ApiErrorResponseDto,
+        message: 'User profile retrieved successfully',
+        type: UserProfileDataDto,
+        errors: [HttpStatus.UNAUTHORIZED, HttpStatus.NOT_FOUND],
     })
     async getMeProfile(
         @CurrentUser('userId') userId: string,
-    ): Promise<UserProfileResponse> {
-        return this.usersService.getMeProfile(userId);
+    ): Promise<ApiSuccessResponse<UserProfileResponse>> {
+        const profile = await this.usersService.getMeProfile(userId);
+        return profile as unknown as ApiSuccessResponse<UserProfileResponse>;
     }
 
     /**
-     * Update current user profile.
-     *
-     * Partially updates profile attributes (headline, bio, social URLs, phone)
-     * and synchronizes the display name on the user record.
+     * Partially update profile attributes and synchronize display name.
      */
     @Patch('me/profile')
-    @HttpCode(HttpStatus.OK)
     @ApiCookieAuth('session-cookie')
-    @ResponseMessage('User profile updated successfully')
-    @ApiOperation({
+    @ApiDoc({
         summary: 'Update profile details and display name',
         description:
             'Partially updates editable user fields (headline, bio, social links, phone) and persists changes to the user display name.',
-    })
-    @ApiBody({ type: UpdateProfileDto })
-    @ApiResponse({
         status: HttpStatus.OK,
-        description: 'Profile updated successfully.',
-        type: UserProfileEnvelopeDto,
-    })
-    @ApiBadRequestResponse({
-        description:
-            'Validation failed on input fields (e.g., bio exceeds length or malformed URL).',
-        type: ApiErrorResponseDto,
-    })
-    @ApiUnauthorizedResponse({
-        description: 'Session cookie is missing, invalid, or expired.',
-        type: ApiErrorResponseDto,
+        message: 'User profile updated successfully',
+        type: UserProfileDataDto,
+        errors: [
+            HttpStatus.BAD_REQUEST,
+            HttpStatus.UNAUTHORIZED,
+            HttpStatus.NOT_FOUND,
+        ],
     })
     async updateMeProfile(
         @CurrentUser('userId') userId: string,
         @Body() dto: UpdateProfileDto,
-    ): Promise<UserProfileResponse> {
-        return this.usersService.updateMeProfile(userId, dto);
+    ): Promise<ApiSuccessResponse<UserProfileResponse>> {
+        const updatedProfile = await this.usersService.updateMeProfile(
+            userId,
+            dto,
+        );
+        return updatedProfile as unknown as ApiSuccessResponse<UserProfileResponse>;
     }
 
     // ===========================================================================
@@ -156,91 +129,66 @@ export class UsersController {
     // ===========================================================================
 
     /**
-     * Request presigned POST upload policy for an avatar image.
-     *
-     * Issues an expiring signed policy enforcing exact byte ranges (1B - 5MB)
-     * and supported MIME types directly at the object storage layer.
+     * Issue an expiring S3 Presigned POST upload policy for an avatar image.
      */
     @Post('me/avatar/upload-url')
-    @HttpCode(HttpStatus.OK)
     @ApiCookieAuth('session-cookie')
-    // @UseGuards(RateLimitGuard)
-    // @RateLimit({ limit: 5, ttlSeconds: 60, keyPrefix: 'rl:avatar-upload' })
-    @ResponseMessage('Avatar upload ticket generated successfully')
-    @ApiOperation({
+    @UseGuards(RateLimitGuard)
+    @RateLimit({
+        limit: 10,
+        targetLimit: 5,
+        ttlSeconds: 60,
+        keyPrefix: 'users:avatar-upload',
+        keyResolver: (req) => (req as AuthenticatedRequest).user?.userId,    })
+    @ApiDoc({
         summary: 'Request presigned POST upload policy for avatar',
         description:
-            'Generates a signed S3 Presigned POST ticket enforcing hardware-level content-length-range (1B to 5MB) and locked MIME types. Rate limited to 5 requests per 60s.',
-    })
-    @ApiBody({ type: RequestAvatarUploadDto })
-    @ApiResponse({
+            'Generates a signed S3 Presigned POST ticket enforcing byte-length bounds and locked MIME types.',
         status: HttpStatus.OK,
-        description: 'Upload policy generated successfully.',
-        type: AvatarUploadTicketEnvelopeDto,
-    })
-    @ApiBadRequestResponse({
-        description:
-            'Unsupported MIME type. Allowed formats: image/jpeg, image/png, image/webp.',
-        type: ApiErrorResponseDto,
-    })
-    @ApiUnauthorizedResponse({
-        description: 'Session cookie is missing, invalid, or expired.',
-        type: ApiErrorResponseDto,
-    })
-    @ApiTooManyRequestsResponse({
-        description: 'Rate limit exceeded (5 requests per 60 seconds).',
-        type: ApiErrorResponseDto,
+        message: 'Avatar upload ticket generated successfully',
+        type: PresignedPostUploadDataDto,
+        errors: [
+            HttpStatus.BAD_REQUEST,
+            HttpStatus.UNAUTHORIZED,
+            HttpStatus.TOO_MANY_REQUESTS,
+        ],
     })
     async requestAvatarUpload(
         @CurrentUser('userId') userId: string,
         @Body() dto: RequestAvatarUploadDto,
-    ): Promise<PresignedPostUploadResponse> {
-        return this.usersService.requestAvatarUploadTicket(userId, dto);
+    ): Promise<ApiSuccessResponse<PresignedPostUploadResponse>> {
+        const ticket = await this.usersService.requestAvatarUploadTicket(
+            userId,
+            dto,
+        );
+        return ticket as unknown as ApiSuccessResponse<PresignedPostUploadResponse>;
     }
 
     /**
-     * Confirm and inspect avatar upload in storage.
-     *
-     * Validates fileKey ownership against session userId (IDOR defense),
-     * verifies object existence and metadata via HeadObject, purges old avatar,
-     * and persists new public URL.
+     * Confirm and inspect avatar upload in storage, purge old avatar, and save URL.
      */
     @Post('me/avatar/complete')
-    @HttpCode(HttpStatus.OK)
     @ApiCookieAuth('session-cookie')
-    @ResponseMessage('Avatar uploaded and verified successfully')
-    @ApiOperation({
+    @ApiDoc({
         summary: 'Confirm and inspect avatar upload in storage',
         description:
-            'Validates fileKey ownership against session userId (IDOR prevention), inspects storage headers via HeadObjectCommand, cleans up previous avatars, and persists new avatarUrl.',
-    })
-    @ApiBody({ type: ConfirmAvatarUploadDto })
-    @ApiResponse({
+            'Validates fileKey ownership against session userId (IDOR prevention), inspects storage headers, cleans up previous avatars, and persists new avatarUrl.',
         status: HttpStatus.OK,
-        description: 'Avatar verified and profile updated.',
-        type: ConfirmAvatarEnvelopeDto,
-    })
-    @ApiBadRequestResponse({
-        description: 'Physical file violates size bounds or MIME type on disk.',
-        type: ApiErrorResponseDto,
-    })
-    @ApiUnauthorizedResponse({
-        description: 'Session cookie is missing, invalid, or expired.',
-        type: ApiErrorResponseDto,
-    })
-    @ApiForbiddenResponse({
-        description: 'Access denied: You cannot claim an asset you do not own.',
-        type: ApiErrorResponseDto,
-    })
-    @ApiNotFoundResponse({
-        description: 'Object key not found in storage bucket.',
-        type: ApiErrorResponseDto,
+        message: 'Avatar uploaded and verified successfully',
+        type: ConfirmAvatarUploadDataDto,
+        errors: [
+            HttpStatus.BAD_REQUEST,
+            HttpStatus.UNAUTHORIZED,
+            HttpStatus.FORBIDDEN,
+            HttpStatus.NOT_FOUND,
+        ],
     })
     async confirmAvatarUpload(
         @CurrentUser('userId') userId: string,
         @Body() dto: ConfirmAvatarUploadDto,
-    ): Promise<ConfirmAvatarUploadResponse> {
-        return this.usersService.confirmAvatarUpload(userId, dto);
+    ): Promise<ApiSuccessResponse<ConfirmAvatarUploadResponse>> {
+        const result = await this.usersService.confirmAvatarUpload(userId, dto);
+        return result as unknown as ApiSuccessResponse<ConfirmAvatarUploadResponse>;
     }
 
     // ===========================================================================
@@ -248,40 +196,30 @@ export class UsersController {
     // ===========================================================================
 
     /**
-     * Authenticated password change.
-     *
-     * Verifies current password using Argon2id, hashes the new password,
-     * updates credentials in PostgreSQL, and revokes all other active sessions in Redis.
+     * Authenticated password change with automatic revocation of other active sessions.
      */
     @Post('me/change-password')
-    @HttpCode(HttpStatus.OK)
     @ApiCookieAuth('session-cookie')
-    // @UseGuards(RateLimitGuard)
-    // @RateLimit({ limit: 5, ttlSeconds: 60, keyPrefix: 'rl:change-pw' })
-    @ResponseMessage('Password changed successfully. Other sessions revoked.')
-    @ApiOperation({
+    @UseGuards(RateLimitGuard)
+    @RateLimit({
+        limit: 10,
+        targetLimit: 5,
+        ttlSeconds: 60,
+        keyPrefix: 'users:change-password',
+        keyResolver: (req) => (req as AuthenticatedRequest).user?.userId,    })
+    @ApiDoc({
         summary: 'Change password and revoke other active sessions',
         description:
-            'Verifies current password via Argon2id, hashes new credentials, updates database, and purges all other active sessions from Redis while preserving current session. Rate limited to 5 requests per 60s.',
-    })
-    @ApiBody({ type: ChangePasswordDto })
-    @ApiResponse({
+            'Verifies current password via Argon2id, hashes new credentials, updates database, and purges all other active sessions from Redis while preserving the current session.',
         status: HttpStatus.OK,
-        description: 'Password changed successfully. Other sessions revoked.',
-        type: ChangePasswordEnvelopeDto,
-    })
-    @ApiBadRequestResponse({
-        description:
-            'Password complexity criteria not met or new password is identical to current password.',
-        type: ApiErrorResponseDto,
-    })
-    @ApiUnauthorizedResponse({
-        description: 'Current password does not match or active session cannot be resolved.',
-        type: ApiErrorResponseDto,
-    })
-    @ApiTooManyRequestsResponse({
-        description: 'Rate limit exceeded (5 requests per 60 seconds).',
-        type: ApiErrorResponseDto,
+        message: 'Password changed successfully. Other sessions revoked.',
+        type: ChangePasswordDataDto,
+        errors: [
+            HttpStatus.BAD_REQUEST,
+            HttpStatus.UNAUTHORIZED,
+            HttpStatus.NOT_FOUND,
+            HttpStatus.TOO_MANY_REQUESTS,
+        ],
     })
     async changePassword(
         @CurrentUser('userId') userId: string,
@@ -289,19 +227,25 @@ export class UsersController {
         @Ip() ipAddress: string,
         @Headers('user-agent') userAgent: string | undefined,
         @Body() dto: ChangePasswordDto,
-    ): Promise<ChangePasswordResponse> {
-        const activeSessionId = req.cookies?.[SESSION_COOKIE_NAME] ?? req.cookies?.sid;
+    ): Promise<ApiSuccessResponse<ChangePasswordResponse>> {
+        const authReq = req as AuthenticatedRequest;
+        const activeSessionId =
+            authReq.sessionId ??
+            (req.cookies?.[SESSION_COOKIE_NAME] as string | undefined);
 
         if (!activeSessionId) {
-            throw new UnauthorizedException('Active session could not be resolved.');
+            throw new UnauthorizedException(
+                'Active session could not be resolved.',
+            );
         }
 
-        return this.usersService.changePassword(
+        const result = await this.usersService.changePassword(
             userId,
             activeSessionId,
             dto,
             { ipAddress, userAgent },
         );
+        return result as unknown as ApiSuccessResponse<ChangePasswordResponse>;
     }
 
     // ===========================================================================
@@ -309,31 +253,23 @@ export class UsersController {
     // ===========================================================================
 
     /**
-     * Public profile discovery endpoint.
-     *
-     * Accessible without an active session. Returns sanitized profile attributes.
+     * Public profile discovery endpoint (unauthenticated).
      */
     @Public()
     @Get(':userId/profile')
-    @HttpCode(HttpStatus.OK)
-    @ResponseMessage('Public profile retrieved successfully')
-    @ApiOperation({
+    @ApiDoc({
         summary: 'Get public-facing user profile',
         description:
-            'Retrieves public-facing profile metadata (displayName, headline, bio, avatar, social links). Does not require an active session and excludes sensitive account details.',
-    })
-    @ApiResponse({
+            'Retrieves sanitized public-facing profile metadata (displayName, headline, bio, avatar, social links).',
         status: HttpStatus.OK,
-        description: 'Public profile retrieved.',
-        type: PublicProfileEnvelopeDto,
-    })
-    @ApiNotFoundResponse({
-        description: 'Public profile not found for specified userId.',
-        type: ApiErrorResponseDto,
+        message: 'Public profile retrieved successfully',
+        type: PublicProfileDataDto,
+        errors: [HttpStatus.NOT_FOUND],
     })
     async getPublicProfile(
         @Param('userId') userId: string,
-    ): Promise<PublicProfileResponse> {
-        return this.usersService.getPublicProfile(userId);
+    ): Promise<ApiSuccessResponse<PublicProfileResponse>> {
+        const profile = await this.usersService.getPublicProfile(userId);
+        return profile as unknown as ApiSuccessResponse<PublicProfileResponse>;
     }
 }
